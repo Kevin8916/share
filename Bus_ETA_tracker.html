@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>香港巴士與小巴實時 ETA 查詢平台 (v14.4)</title>
+  <title>香港巴士與小巴實時 ETA 查詢平台 (v14.5)</title>
   <style>
     :root {
       --primary-color: #0056b3;
@@ -277,7 +277,7 @@
 <body>
 
 <div class="container">
-  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 (v14.4)</h1>
+  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 (v14.5)</h1>
 
   <div class="search-box">
     <input type="text" id="routeInput" placeholder="輸入路線編號 (例: 5B, 116, 140M, 1, K12)..." autocomplete="off">
@@ -823,15 +823,11 @@
             });
             rawEtas.sort((a, b) => (a.eta_seq || 0) - (b.eta_seq || 0));
 
-            let slotsHtml = '';
-            for (let i = 0; i < displaySlotCount; i++) {
-              slotsHtml += formatEtaSlot(normalizeKmbEta(rawEtas[i]), i);
-            }
             stopItem.querySelector('.stop-name').innerText = `${stopRef.seq}. ${stopName}`;
-            stopItem.querySelector('.eta-box').innerHTML = slotsHtml;
+            stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots(rawEtas.map(normalizeKmbEta));
           } catch (err) {
             console.error('KMB stop/eta error', err);
-            stopItem.querySelector('.eta-box').innerHTML = formatEtaSlot({ error: true }, 0);
+            stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots([], { error: true });
           }
         });
       } catch (err) {
@@ -942,15 +938,9 @@
               const etaData = await fetchJson(`${API.GMB_ETA}${variant.route_id}/${dir.route_seq}/${stop.stop_seq}`);
               const rawList = etaData?.data?.eta || [];
               const rawEtas = rawList.map(normalizeGmbEta).filter(Boolean);
-              let slotsHtml = '';
-              for (let i = 0; i < displaySlotCount; i++) {
-                slotsHtml += formatEtaSlot(rawEtas[i] || null, i);
-              }
-              stopItem.querySelector('.eta-box').innerHTML = slotsHtml;
+              stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots(rawEtas);
             } catch {
-              let slotsHtml = '';
-              for (let i = 0; i < displaySlotCount; i++) slotsHtml += formatEtaSlot({ error: true }, i);
-              stopItem.querySelector('.eta-box').innerHTML = slotsHtml;
+              stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots([], { error: true });
             }
           });
         } catch (e) {
@@ -1025,15 +1015,11 @@
               const sameSeq = e.seq == null || String(e.seq) === String(stopRef.seq);
               return sameDir && sameSeq;
             }).sort((a, b) => (a.eta_seq || 0) - (b.eta_seq || 0));
-            let slotsHtml = '';
-            for (let i = 0; i < displaySlotCount; i++) {
-              slotsHtml += formatEtaSlot(normalizeKmbEta(rawEtas[i]), i);
-            }
             stopItem.querySelector('.stop-name').innerText = `${stopRef.seq}. ${stopName}`;
-            stopItem.querySelector('.eta-box').innerHTML = slotsHtml;
+            stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots(rawEtas.map(normalizeKmbEta));
           } catch (err) {
             console.error('CTB stop/eta error', err);
-            stopItem.querySelector('.eta-box').innerHTML = formatEtaSlot({ error: true }, 0);
+            stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots([], { error: true });
           }
         });
       } catch (err) {
@@ -1086,13 +1072,9 @@
               remark: scheduled ? '原定班次' : ''
             };
           });
-          let slotsHtml = '';
-          for (let i = 0; i < displaySlotCount; i++) slotsHtml += formatEtaSlot(rawEtas[i] || null, i);
-          stopItem.querySelector('.eta-box').innerHTML = slotsHtml;
+          stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots(rawEtas);
         } catch {
-          let slotsHtml = '';
-          for (let i = 0; i < displaySlotCount; i++) slotsHtml += formatEtaSlot({ error: true }, i);
-          stopItem.querySelector('.eta-box').innerHTML = slotsHtml;
+          stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots([], { error: true });
         }
       });
     } catch (e) {
@@ -1169,8 +1151,7 @@
           }
           const name = ls.busStopName_zh || ls.busStopName_chi || ls.busStopId || `站 ${idx + 1}`;
           const rawEtas = (ls.bus || []).map(parseMtrArrival).filter(Boolean);
-          let slotsHtml = '';
-          for (let i = 0; i < displaySlotCount; i++) slotsHtml += formatEtaSlot(rawEtas[i] || (statusRemark ? { remark: statusRemark } : null), i);
+          const slotsHtml = renderEtaSlots(rawEtas, statusRemark ? { remark: statusRemark } : null);
           stopItem.innerHTML = `<span class="stop-name">${idx + 1}. ${name}</span><div class="eta-box">${slotsHtml}</div>`;
         });
         continue;
@@ -1189,10 +1170,7 @@
           (ls.busStopName_zh && ls.busStopName_zh.includes(stop.STATION_NAME_CHI))
         );
         const rawEtas = (live?.bus || []).map(parseMtrArrival).filter(Boolean);
-        let slotsHtml = '';
-        for (let i = 0; i < displaySlotCount; i++) {
-          slotsHtml += formatEtaSlot(rawEtas[i] || (statusRemark ? { remark: statusRemark } : null), i);
-        }
+        const slotsHtml = renderEtaSlots(rawEtas, statusRemark ? { remark: statusRemark } : null);
         stopItem.innerHTML = `<span class="stop-name">${stop.STATION_SEQNO || idx + 1}. ${stop.STATION_NAME_CHI}</span><div class="eta-box">${slotsHtml}</div>`;
       });
     }
@@ -1218,6 +1196,36 @@
     if (!ctbEnds.length || !kmbEnds.length) return false;
     const similar = (x, y) => x === y || (x.length >= 2 && y.length >= 2 && (x.includes(y) || y.includes(x)));
     return ctbEnds.some(a => kmbEnds.some(b => similar(a, b)));
+  }
+
+  function isDepartedEta(etaObj) {
+    if (!etaObj || !etaObj.eta) return false;
+    const parsed = new Date(parseFlexibleTimestamp(etaObj.eta) || etaObj.eta);
+    const diffMs = parsed - Date.now();
+    return !Number.isNaN(diffMs) && diffMs <= -90000;
+  }
+
+  function renderEtaSlots(rawEtas, emptyFallback) {
+    const list = (rawEtas || []).filter(Boolean);
+    const keep = [];
+    let departed = false;
+    list.forEach((e) => {
+      if (isDepartedEta(e)) departed = true;
+      else keep.push(e);
+    });
+    let html = '';
+    for (let i = 0; i < displaySlotCount; i++) {
+      if (keep[i]) {
+        html += formatEtaSlot(keep[i], i);
+      } else if (i === 0 && departed && !keep.length && !emptyFallback) {
+        html += formatEtaSlot({ remark: '已離開' }, i);
+      } else if (emptyFallback && !keep.length) {
+        html += formatEtaSlot(emptyFallback, i);
+      } else {
+        html += formatEtaSlot(null, i);
+      }
+    }
+    return html;
   }
 
   function formatEtaSlot(etaObj, index) {
