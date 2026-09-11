@@ -161,16 +161,32 @@
     .eta.gone { color: var(--gone-fg); }
     .eta.min { color: var(--live-fg); }
     .stop-row {
-      display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px;
-      padding: 12px 0; border-top: 1px dashed var(--line); align-items: center;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+      padding: 12px 0;
+      border-top: 1px dashed var(--line);
     }
     .stop-row:first-of-type { border-top: 0; }
-    .stop-name { border: 0; background: transparent; text-align: left; padding: 0; color: var(--fg); font-weight: 600; min-height: 44px; }
+    .stop-name {
+      border: 0; background: transparent; text-align: left; padding: 0;
+      color: var(--fg); font-weight: 600; min-height: 36px;
+      align-self: flex-start; max-width: 100%;
+    }
     .stop-name:hover { text-decoration: underline; }
-    .pills { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+    .pills {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+      align-self: flex-end;
+      width: 100%;
+    }
     .pill {
       display: inline-flex; align-items: center; gap: 8px; border-radius: 8px; border: 1px solid var(--line);
       padding: 6px 10px; font-size: .85rem;
+      flex: 0 1 auto; max-width: 100%;
     }
     .pill .k, .pill .t { font-weight: 600; color: var(--muted); padding-right: 8px; border-right: 1px solid var(--line); }
     .pill .t { color: inherit; font-weight: 700; font-variant-numeric: tabular-nums; }
@@ -201,7 +217,7 @@
     <header>
       <button type="button" id="homeBtn" class="back" style="display:block;text-align:left;padding:0;background:transparent;">
         <p class="kicker">MTR Light Rail</p>
-        <h1>輕鐵實時到站 <span class="ver">(v1)</span></h1>
+        <h1>輕鐵實時到站 <span class="ver">(v1.1)</span></h1>
         <p class="sub">以車站月台為準，亦可按路線查看沿線各站班次。資料來自港鐵開放數據。</p>
       </button>
       <button type="button" id="backBtn" class="back" hidden>返回</button>
