@@ -712,7 +712,15 @@
       serviceType: String(variant.service_type),
       orig: variant.orig_tc,
       dest: variant.dest_tc
-    }));
+    })).sort((a, b) => {
+      const specialA = a.serviceType === '1' ? 0 : 1;
+      const specialB = b.serviceType === '1' ? 0 : 1;
+      if (specialA !== specialB) return specialA - specialB;
+      const boundA = a.bound === 'I' ? 1 : 0;
+      const boundB = b.bound === 'I' ? 1 : 0;
+      if (boundA !== boundB) return boundA - boundB;
+      return a.serviceType.localeCompare(b.serviceType, undefined, { numeric: true });
+    });
 
     if (!isSilentRefresh && token === activeRequestToken) resultsContainer.innerHTML = '';
 
@@ -819,9 +827,29 @@
 
     if (!isSilentRefresh && token === activeRequestToken) resultsContainer.innerHTML = '';
 
-    for (const variant of details) {
-      const directions = variant.directions || [];
-      for (const dir of directions) {
+    const gmbJobs = [];
+    details.forEach((variant, variantIdx) => {
+      const desc = `${variant.description_tc || ''} ${variant.remarks_tc || ''}`;
+      const variantIsSpecial = /特別/.test(desc) || variantIdx > 0;
+      (variant.directions || []).forEach(dir => {
+        const dirText = `${desc} ${dir.remarks_tc || ''}`;
+        gmbJobs.push({
+          variant,
+          dir,
+          isSpecial: variantIsSpecial || /特別/.test(dirText),
+          routeSeq: Number(dir.route_seq) || 0
+        });
+      });
+    });
+    gmbJobs.sort((a, b) => {
+      if (a.isSpecial !== b.isSpecial) return a.isSpecial ? 1 : -1;
+      if (a.routeSeq !== b.routeSeq) return a.routeSeq - b.routeSeq;
+      return String(a.variant.route_id).localeCompare(String(b.variant.route_id), undefined, { numeric: true });
+    });
+
+    for (const job of gmbJobs) {
+      const variant = job.variant;
+      const dir = job.dir;
         if (token !== activeRequestToken) return;
         const dirKey = `gmb-${variant.route_id}-${dir.route_seq}`;
         const title = `${dir.orig_tc} ➔ ${dir.dest_tc}`;
@@ -831,7 +859,7 @@
           `方向 ${dir.route_seq}`,
           variant.description_tc || '',
           dir.remarks_tc || ''
-        ].filter(Boolean).join('　');
+        ].filter(Boolean).join(' ');
 
         try {
           const data = await fetchJson(`${API.GMB_ROUTE_STOPS}${variant.route_id}/${dir.route_seq}`);
@@ -882,7 +910,6 @@
         } catch (e) {
           console.error('GMB route-stop error', e);
         }
-      }
     }
   }
 
@@ -926,7 +953,7 @@
           card = document.createElement('div');
           card.id = containerId;
           card.className = 'dir-card';
-          card.innerHTML = `<div class="dir-title">${dir.word}：${dir.orig || '?'} ➔ ${dir.dest || '?'}<span class="dir-sub">城巴 ${routeInfo.route}　dir=${dir.code}　聯營線只顯示城巴班次</span></div><ul class="stop-list"></ul>`;
+          card.innerHTML = `<div class="dir-title">${dir.word}：${dir.orig || '?'} ➔ ${dir.dest || '?'}<span class="dir-sub">城巴 ${routeInfo.route} dir=${dir.code} 聯營線只顯示城巴班次</span></div><ul class="stop-list"></ul>`;
           resultsContainer.appendChild(card);
         }
         const stopListEl = card.querySelector('.stop-list');
@@ -987,7 +1014,7 @@
         card = document.createElement('div');
         card.id = containerId;
         card.className = 'dir-card';
-        card.innerHTML = `<div class="dir-title">${routeInfo.origDest || routeInfo.route}<span class="dir-sub">嶼巴 ${routeInfo.route}　routeId=${routeInfo.routeId}</span></div><ul class="stop-list"></ul>`;
+        card.innerHTML = `<div class="dir-title">${routeInfo.origDest || routeInfo.route}<span class="dir-sub">嶼巴 ${routeInfo.route} routeId=${routeInfo.routeId}</span></div><ul class="stop-list"></ul>`;
         resultsContainer.appendChild(card);
       }
       const stopListEl = card.querySelector('.stop-list');
@@ -1066,7 +1093,12 @@
     });
     Object.keys(dirs).forEach(d => dirs[d].sort((a, b) => Number(a.STATION_SEQNO) - Number(b.STATION_SEQNO)));
 
-    const dirKeys = Object.keys(dirs).length ? Object.keys(dirs) : ['ALL'];
+    const dirKeys = Object.keys(dirs).length
+      ? Object.keys(dirs).sort((a, b) => {
+          const rank = (d) => (d === 'O' ? 0 : d === 'I' ? 1 : 2);
+          return rank(a) - rank(b);
+        })
+      : ['ALL'];
     for (const d of dirKeys) {
       const containerId = `mtrb-card-${routeInfo.route}-${d}`;
       let card = document.getElementById(containerId);
@@ -1076,11 +1108,11 @@
         card = document.createElement('div');
         card.id = containerId;
         card.className = 'dir-card';
-        card.innerHTML = `<div class="dir-title">${word}：${routeInfo.origDest || routeInfo.route}<span class="dir-sub">港鐵巴士 ${routeInfo.route}${statusRemark ? '　' + statusRemark : ''}</span></div><ul class="stop-list"></ul>`;
+        card.innerHTML = `<div class="dir-title">${word}：${routeInfo.origDest || routeInfo.route}<span class="dir-sub">港鐵巴士 ${routeInfo.route}${statusRemark ? ' ' + statusRemark : ''}</span></div><ul class="stop-list"></ul>`;
         resultsContainer.appendChild(card);
       } else if (statusRemark) {
         const sub = card.querySelector('.dir-sub');
-        if (sub) sub.textContent = `港鐵巴士 ${routeInfo.route}　${statusRemark}`;
+        if (sub) sub.textContent = `港鐵巴士 ${routeInfo.route} ${statusRemark}`;
       }
       const stopListEl = card.querySelector('.stop-list');
       const stops = dirs[d] || [];
