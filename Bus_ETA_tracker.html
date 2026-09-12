@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>香港巴士與小巴實時 ETA 查詢平台 (v14.5.3)</title>
+  <title>香港巴士與小巴實時 ETA 查詢平台 (v14.5.4)</title>
   <style>
     :root {
       --primary-color: #0056b3;
@@ -280,12 +280,43 @@
       color: #333;
       cursor: pointer;
     }
+
+    #floatRefreshBtn {
+      display: none;
+      position: fixed;
+      top: max(16px, env(safe-area-inset-top));
+      right: max(16px, env(safe-area-inset-right));
+      z-index: 1100;
+      background: #0295FF;
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 8px 18px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 4px 12px rgba(2, 149, 255, 0.38);
+      transition: background-color 0.2s, transform 0.1s, opacity 0.2s;
+    }
+
+    #floatRefreshBtn:hover { background-color: #007FE0; }
+    #floatRefreshBtn:active { transform: scale(0.96); }
+    #floatRefreshBtn:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v14.5.3)</span></h1>
+  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v14.5.4)</span></h1>
 
   <div class="search-box">
     <input type="text" id="routeInput" placeholder="輸入路線編號 (例: 5B, 116, 140M, 1, K12)..." autocomplete="off">
@@ -318,6 +349,8 @@
 
   <div id="results" class="direction-container"></div>
 </div>
+
+<button type="button" id="floatRefreshBtn" onclick="manualRefresh()" aria-label="手動刷新到站時間" title="手動刷新到站時間">刷新[12]</button>
 
 <script>
   const API = {
@@ -378,6 +411,7 @@
   let countdownTimer = null;
   let refreshIntervalSec = 12;
   let secondsRemaining = refreshIntervalSec;
+  let isManualRefreshing = false;
   let isRoutesLoaded = false;
   let displaySlotCount = 2;
   const gmbDetailCache = new Map();
@@ -713,6 +747,8 @@
     if (routeItem.type === 'NLB' && routeItem.origDest) extra = `（${routeItem.origDest}）`;
     if (routeItem.type === 'MTRB' && routeItem.origDest) extra = `（${routeItem.origDest}）`;
     activeRouteName.innerText = `${routeItem.company} - ${routeItem.route}${extra}`;
+    const floatBtn = document.getElementById('floatRefreshBtn');
+    if (floatBtn) floatBtn.style.display = 'inline-flex';
     fetchAndDisplayETA(selectedRoute);
     resetAutoRefresh();
   }
@@ -722,8 +758,11 @@
   }
 
   function setCountdownDisplay(sec) {
+    const formatted = formatCountdown(sec);
     const el = document.getElementById('countdownTimer');
-    if (el) el.innerText = formatCountdown(sec);
+    if (el) el.innerText = formatted;
+    const floatBtn = document.getElementById('floatRefreshBtn');
+    if (floatBtn) floatBtn.innerText = `刷新[${formatted}]`;
   }
 
   function resetAutoRefresh() {
@@ -1312,6 +1351,18 @@
     refreshIntervalSec = next;
     if (selectedRoute) resetAutoRefresh();
     else setCountdownDisplay(refreshIntervalSec);
+  }
+
+  function manualRefresh() {
+    if (!selectedRoute || isManualRefreshing) return;
+    const btn = document.getElementById('floatRefreshBtn');
+    isManualRefreshing = true;
+    if (btn) btn.disabled = true;
+    resetAutoRefresh();
+    fetchAndDisplayETA(selectedRoute, true).finally(() => {
+      isManualRefreshing = false;
+      if (btn) btn.disabled = false;
+    });
   }
 </script>
 
