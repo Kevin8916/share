@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>香港巴士與小巴實時 ETA 查詢平台 (v14.5.4)</title>
+  <title>香港巴士與小巴實時 ETA 查詢平台 (v14.5.5)</title>
   <style>
     :root {
       --primary-color: #0056b3;
@@ -284,7 +284,7 @@
     #floatRefreshBtn {
       display: none;
       position: fixed;
-      top: max(16px, env(safe-area-inset-top));
+      bottom: max(16px, env(safe-area-inset-bottom));
       right: max(16px, env(safe-area-inset-right));
       z-index: 1100;
       background: #0295FF;
@@ -300,14 +300,23 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(2, 149, 255, 0.38);
+      box-shadow: 0 4px 12px rgba(2, 149, 255, 0.22);
+      opacity: 0.5;
       transition: background-color 0.2s, transform 0.1s, opacity 0.2s;
     }
 
-    #floatRefreshBtn:hover { background-color: #007FE0; }
-    #floatRefreshBtn:active { transform: scale(0.96); }
+    #floatRefreshBtn:hover,
+    #floatRefreshBtn:focus-visible {
+      background-color: #007FE0;
+      opacity: 1;
+      box-shadow: 0 4px 12px rgba(2, 149, 255, 0.38);
+    }
+    #floatRefreshBtn:active {
+      transform: scale(0.96);
+      opacity: 1;
+    }
     #floatRefreshBtn:disabled {
-      opacity: 0.6;
+      opacity: 0.4;
       cursor: not-allowed;
       transform: none;
     }
@@ -316,7 +325,7 @@
 <body>
 
 <div class="container">
-  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v14.5.4)</span></h1>
+  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v14.5.5)</span></h1>
 
   <div class="search-box">
     <input type="text" id="routeInput" placeholder="輸入路線編號 (例: 5B, 116, 140M, 1, K12)..." autocomplete="off">
