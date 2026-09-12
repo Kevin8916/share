@@ -1396,6 +1396,7 @@
     pulseFloatRefreshOpaque();
     isManualRefreshing = true;
     if (btn) btn.disabled = true;
+    resetAutoRefresh();
     fetchAndDisplayETA(selectedRoute, true).finally(() => {
       isManualRefreshing = false;
       if (btn) btn.disabled = false;
