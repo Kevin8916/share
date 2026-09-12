@@ -60,6 +60,23 @@
       border-radius: 8px; font-size: .9rem; font-weight: 600;
     }
     .back:hover { background: #eceae4; }
+    .back-fab {
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      left: max(12px, env(safe-area-inset-left));
+      z-index: 40;
+      min-width: 44px; height: 44px; padding: 0 12px;
+      border: 1px solid var(--line); border-radius: 999px;
+      background: color-mix(in oklab, var(--card) 88%, transparent);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 4px 16px rgba(28,28,26,.14);
+      font-size: .8rem; font-weight: 700; color: var(--fg);
+    }
+    .back-fab:hover { background: var(--card); }
+    .back-fab[hidden] { display: none !important; }
+    @media (max-width: 860px) {
+      body.has-back header { padding-left: 52px; }
+    }
     .search { display: flex; gap: 8px; position: relative; margin-bottom: 16px; }
     .search-field { position: relative; flex: 1; min-width: 0; }
     .search input {
@@ -128,6 +145,7 @@
       background: #e8e6df; border: 1px solid var(--line); border-radius: 16px;
       padding: 12px 16px; margin-bottom: 14px; align-items: center;
     }
+    .status[hidden] { display: none !important; }
     .status .label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
     .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
     .controls select, .controls button {
@@ -141,20 +159,26 @@
     }
     .head-row { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
     .title { font-size: 1.45rem; margin: 0; }
+    .zh-name { font-size: 1.25em; }
     .en { color: var(--muted); font-size: .9rem; margin: 4px 0 0; }
     .star {
       width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--card);
       font-size: 1.1rem; line-height: 1;
     }
     .star.on { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
-    .plat { font-size: 1rem; margin: 0 0 6px; }
+    .plat {
+      font-size: 1rem; margin: 0 0 6px; font-weight: 700;
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .35em;
+      line-height: 1.4;
+    }
+    .plat-dest { font-weight: 500; color: var(--muted); font-size: .9rem; }
     .train {
       width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
       border: 0; background: transparent; padding: 10px 0; color: var(--fg); border-top: 1px solid var(--line);
     }
     .train:first-of-type { border-top: 0; }
     .train:hover { background: #f3f1ec; }
-    .dest { font-weight: 600; margin: 0; }
+    .dest { font-weight: 600; margin: 0; font-size: 1.25em; }
     .tiny { font-size: .75rem; color: var(--muted); margin: 2px 0 0; }
     .eta { font-weight: 700; font-variant-numeric: tabular-nums; margin-left: auto; }
     .eta.now { color: var(--now-fg); }
@@ -177,9 +201,9 @@
     .stop-name:hover { text-decoration: underline; }
     .pills {
       display: flex;
-      flex-wrap: wrap;
+      flex-direction: column;
+      align-items: flex-end;
       gap: 8px;
-      justify-content: flex-end;
       align-self: flex-end;
       width: 100%;
     }
@@ -202,6 +226,7 @@
     .eta { transition: color .2s ease; }
     .warn { color: var(--warn); font-size: .9rem; }
     .muted { color: var(--muted); font-size: .9rem; }
+    .plat-note { margin: -4px 6px 12px; font-size: .8rem; }
     .loading { text-align: center; color: var(--muted); padding: 28px 12px; font-style: italic; }
     footer { text-align: center; color: var(--muted); font-size: .75rem; margin-top: 24px; }
     .dir-tag { font-size: .75rem; color: var(--muted); }
@@ -217,10 +242,10 @@
     <header>
       <button type="button" id="homeBtn" class="back" style="display:block;text-align:left;padding:0;background:transparent;">
         <p class="kicker">MTR Light Rail</p>
-        <h1>輕鐵實時到站 <span class="ver">(v1.1)</span></h1>
+        <h1>輕鐵實時到站 <span class="ver">(v1.8)</span></h1>
         <p class="sub">以車站月台為準，亦可按路線查看沿線各站班次。資料來自港鐵開放數據。</p>
       </button>
-      <button type="button" id="backBtn" class="back" hidden>返回</button>
+      <button type="button" id="headerBackBtn" class="back" hidden aria-label="返回上一畫面">返回</button>
     </header>
 
     <div class="search">
@@ -253,12 +278,13 @@
 
     <div id="board"></div>
     <div id="home"></div>
+    <button type="button" id="backBtn" class="back-fab" hidden aria-label="返回上一畫面">返回</button>
     <footer>班次資料由港鐵公司提供，僅供參考。實際以車站顯示屏為準。單檔 HTML 可另存使用。</footer>
   </div>
 
 <script>
 (function () {
-  const DATA = {"STOPS":[{"id":1,"nameZh":"屯門碼頭","nameEn":"Tuen Mun Ferry Pier","code":"FEP","zone":"屯門碼頭","interchangeTml":false,"aliases":["碼頭"]},{"id":10,"nameZh":"美樂","nameEn":"Melody Garden","code":"MEG","zone":"屯門碼頭","interchangeTml":false,"aliases":[]},{"id":15,"nameZh":"蝴蝶","nameEn":"Butterfly","code":"BUT","zone":"屯門碼頭","interchangeTml":false,"aliases":[]},{"id":20,"nameZh":"輕鐵車廠","nameEn":"Light Rail Depot","code":"LRD","zone":"屯門碼頭","interchangeTml":false,"aliases":[]},{"id":30,"nameZh":"龍門","nameEn":"Lung Mun","code":"LUM","zone":"屯門碼頭","interchangeTml":false,"aliases":[]},{"id":40,"nameZh":"青山村","nameEn":"Tsing Shan Tsuen","code":"TSS","zone":"屯門碼頭","interchangeTml":false,"aliases":[]},{"id":50,"nameZh":"青雲","nameEn":"Tsing Wun","code":"TWN","zone":"屯門碼頭","interchangeTml":false,"aliases":[]},{"id":60,"nameZh":"建安","nameEn":"Kin On","code":"KIO","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":70,"nameZh":"河田","nameEn":"Ho Tin","code":"HOT","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":75,"nameZh":"蔡意橋","nameEn":"Choy Yee Bridge","code":"CYB","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":80,"nameZh":"澤豐","nameEn":"Affluence","code":"AFF","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":90,"nameZh":"屯門醫院","nameEn":"Tuen Mun Hospital","code":"TMH","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":100,"nameZh":"兆康","nameEn":"Siu Hong","code":"SHL","zone":"屯門北","interchangeTml":true,"aliases":["兆康站"]},{"id":110,"nameZh":"麒麟","nameEn":"Kei Lun","code":"KEL","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":120,"nameZh":"青松","nameEn":"Ching Chung","code":"CHC","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":130,"nameZh":"建生","nameEn":"Kin Sang","code":"KIS","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":140,"nameZh":"田景","nameEn":"Tin King","code":"TNK","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":150,"nameZh":"良景","nameEn":"Leung King","code":"LEK","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":160,"nameZh":"新圍","nameEn":"San Wai","code":"SAW","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":170,"nameZh":"石排","nameEn":"Shek Pai","code":"SHP","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":180,"nameZh":"山景(北)","nameEn":"Shan King (North)","code":"SKN","zone":"屯門北","interchangeTml":false,"aliases":["山景北","山景"]},{"id":190,"nameZh":"山景(南)","nameEn":"Shan King (South)","code":"SKS","zone":"屯門北","interchangeTml":false,"aliases":["山景南","山景"]},{"id":200,"nameZh":"鳴琴","nameEn":"Ming Kum","code":"MIK","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":212,"nameZh":"大興(北)","nameEn":"Tai Hing (North)","code":"THN","zone":"屯門北","interchangeTml":false,"aliases":["大興北","大興"]},{"id":220,"nameZh":"大興(南)","nameEn":"Tai Hing (South)","code":"THS","zone":"屯門北","interchangeTml":false,"aliases":["大興南","大興"]},{"id":230,"nameZh":"銀圍","nameEn":"Ngan Wai","code":"NGW","zone":"屯門北","interchangeTml":false,"aliases":[]},{"id":240,"nameZh":"兆禧","nameEn":"Siu Hei","code":"SHE","zone":"屯門南","interchangeTml":false,"aliases":[]},{"id":250,"nameZh":"海皇路","nameEn":"Hoi Wong Road","code":"TSP","zone":"屯門南","interchangeTml":false,"aliases":["屯門泳池","泳池","Tuen Mun Swimming Pool"]},{"id":260,"nameZh":"豐景園","nameEn":"Goodview Garden","code":"GOG","zone":"屯門南","interchangeTml":false,"aliases":[]},{"id":265,"nameZh":"兆麟","nameEn":"Siu Lun","code":"SIL","zone":"屯門南","interchangeTml":false,"aliases":[]},{"id":270,"nameZh":"安定","nameEn":"On Ting","code":"ONT","zone":"屯門市中心","interchangeTml":false,"aliases":[]},{"id":275,"nameZh":"友愛","nameEn":"Yau Oi","code":"YAO","zone":"屯門市中心","interchangeTml":false,"aliases":[]},{"id":280,"nameZh":"市中心","nameEn":"Town Centre","code":"TOC","zone":"屯門市中心","interchangeTml":false,"aliases":["屯門市中心","市中"]},{"id":295,"nameZh":"屯門","nameEn":"Tuen Mun","code":"TML","zone":"屯門市中心","interchangeTml":true,"aliases":["屯門站"]},{"id":300,"nameZh":"杯渡","nameEn":"Pui To","code":"PUT","zone":"屯門市中心","interchangeTml":false,"aliases":[]},{"id":310,"nameZh":"何福堂","nameEn":"Hoh Fuk Tong","code":"HFT","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":320,"nameZh":"新墟","nameEn":"San Hui","code":"SAH","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":330,"nameZh":"景峰","nameEn":"Prime View","code":"PRV","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":340,"nameZh":"鳳地","nameEn":"Fung Tei","code":"FUT","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":350,"nameZh":"藍地","nameEn":"Lam Tei","code":"LTE","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":360,"nameZh":"泥圍","nameEn":"Nai Wai","code":"NAW","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":370,"nameZh":"鍾屋村","nameEn":"Chung Uk Tsuen","code":"CUT","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":380,"nameZh":"洪水橋","nameEn":"Hung Shui Kiu","code":"HSK","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":390,"nameZh":"塘坊村","nameEn":"Tong Fong Tsuen","code":"TOF","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":400,"nameZh":"屏山","nameEn":"Ping Shan","code":"PIS","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":425,"nameZh":"坑尾村","nameEn":"Hang Mei Tsuen","code":"HMT","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":430,"nameZh":"天水圍","nameEn":"Tin Shui Wai","code":"TSL","zone":"天水圍","interchangeTml":true,"aliases":["天水圍站"]},{"id":435,"nameZh":"天慈","nameEn":"Tin Tsz","code":"TIT","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":445,"nameZh":"天耀","nameEn":"Tin Yiu","code":"TIY","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":448,"nameZh":"樂湖","nameEn":"Locwood","code":"LOC","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":450,"nameZh":"天湖","nameEn":"Tin Wu","code":"TWU","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":455,"nameZh":"銀座","nameEn":"Ginza","code":"GIN","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":460,"nameZh":"天瑞","nameEn":"Tin Shui","code":"TSU","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":468,"nameZh":"頌富","nameEn":"Chung Fu","code":"CHF","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":480,"nameZh":"天富","nameEn":"Tin Fu","code":"TFU","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":490,"nameZh":"翠湖","nameEn":"Chestwood","code":"CHE","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":500,"nameZh":"天榮","nameEn":"Tin Wing","code":"TWI","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":510,"nameZh":"天悅","nameEn":"Tin Yuet","code":"TYU","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":520,"nameZh":"天秀","nameEn":"Tin Sau","code":"TSA","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":530,"nameZh":"濕地公園","nameEn":"Wetland Park","code":"WEP","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":540,"nameZh":"天恒","nameEn":"Tin Heng","code":"THE","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":550,"nameZh":"天逸","nameEn":"Tin Yat","code":"TYA","zone":"天水圍","interchangeTml":false,"aliases":[]},{"id":560,"nameZh":"水邊圍","nameEn":"Shui Pin Wai","code":"SPW","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":570,"nameZh":"豐年路","nameEn":"Fung Nin Road","code":"FNR","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":580,"nameZh":"康樂路","nameEn":"Hong Lok Road","code":"HLR","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":590,"nameZh":"大棠路","nameEn":"Tai Tong Road","code":"TTR","zone":"屯門至元朗","interchangeTml":false,"aliases":[]},{"id":600,"nameZh":"元朗","nameEn":"Yuen Long","code":"YLL","zone":"屯門至元朗","interchangeTml":true,"aliases":["元朗站"]},{"id":920,"nameZh":"三聖","nameEn":"Sam Shing","code":"SAS","zone":"屯門南","interchangeTml":false,"aliases":[]}],"ROUTES":[{"code":"505","nameZh":"三聖 ↔ 兆康","circular":false,"directions":[{"dir":1,"origZh":"三聖","destZh":"兆康","destEn":"Siu Hong","stops":[{"seq":1,"stopId":920},{"seq":2,"stopId":265},{"seq":3,"stopId":270},{"seq":4,"stopId":280},{"seq":5,"stopId":295},{"seq":6,"stopId":60},{"seq":7,"stopId":190},{"seq":8,"stopId":180},{"seq":9,"stopId":170},{"seq":10,"stopId":160},{"seq":11,"stopId":150},{"seq":12,"stopId":140},{"seq":13,"stopId":130},{"seq":14,"stopId":120},{"seq":15,"stopId":110},{"seq":16,"stopId":100}]},{"dir":2,"origZh":"兆康","destZh":"三聖","destEn":"Sam Shing","stops":[{"seq":1,"stopId":100},{"seq":2,"stopId":120},{"seq":3,"stopId":130},{"seq":4,"stopId":140},{"seq":5,"stopId":150},{"seq":6,"stopId":160},{"seq":7,"stopId":170},{"seq":8,"stopId":200},{"seq":9,"stopId":60},{"seq":10,"stopId":295},{"seq":11,"stopId":280},{"seq":12,"stopId":270},{"seq":13,"stopId":265},{"seq":14,"stopId":920}]}]},{"code":"507","nameZh":"屯門碼頭 ↔ 田景","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"田景","destEn":"Tin King","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":240},{"seq":3,"stopId":250},{"seq":4,"stopId":260},{"seq":5,"stopId":265},{"seq":6,"stopId":270},{"seq":7,"stopId":280},{"seq":8,"stopId":295},{"seq":9,"stopId":70},{"seq":10,"stopId":75},{"seq":11,"stopId":230},{"seq":12,"stopId":220},{"seq":13,"stopId":212},{"seq":14,"stopId":160},{"seq":15,"stopId":150},{"seq":16,"stopId":140}]},{"dir":2,"origZh":"田景","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":140},{"seq":2,"stopId":150},{"seq":3,"stopId":160},{"seq":4,"stopId":212},{"seq":5,"stopId":220},{"seq":6,"stopId":230},{"seq":7,"stopId":75},{"seq":8,"stopId":70},{"seq":9,"stopId":295},{"seq":10,"stopId":280},{"seq":11,"stopId":270},{"seq":12,"stopId":265},{"seq":13,"stopId":260},{"seq":14,"stopId":250},{"seq":15,"stopId":240},{"seq":16,"stopId":1}]}]},{"code":"610","nameZh":"屯門碼頭 ↔ 元朗","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"元朗","destEn":"Yuen Long","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":10},{"seq":3,"stopId":15},{"seq":4,"stopId":20},{"seq":5,"stopId":30},{"seq":6,"stopId":40},{"seq":7,"stopId":50},{"seq":8,"stopId":200},{"seq":9,"stopId":170},{"seq":10,"stopId":212},{"seq":11,"stopId":220},{"seq":12,"stopId":230},{"seq":13,"stopId":80},{"seq":14,"stopId":90},{"seq":15,"stopId":100},{"seq":16,"stopId":350},{"seq":17,"stopId":360},{"seq":18,"stopId":370},{"seq":19,"stopId":380},{"seq":20,"stopId":390},{"seq":21,"stopId":400},{"seq":22,"stopId":560},{"seq":23,"stopId":570},{"seq":24,"stopId":580},{"seq":25,"stopId":590},{"seq":26,"stopId":600}]},{"dir":2,"origZh":"元朗","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":600},{"seq":2,"stopId":590},{"seq":3,"stopId":580},{"seq":4,"stopId":570},{"seq":5,"stopId":560},{"seq":6,"stopId":400},{"seq":7,"stopId":390},{"seq":8,"stopId":380},{"seq":9,"stopId":370},{"seq":10,"stopId":360},{"seq":11,"stopId":350},{"seq":12,"stopId":100},{"seq":13,"stopId":90},{"seq":14,"stopId":80},{"seq":15,"stopId":230},{"seq":16,"stopId":220},{"seq":17,"stopId":212},{"seq":18,"stopId":170},{"seq":19,"stopId":200},{"seq":20,"stopId":50},{"seq":21,"stopId":40},{"seq":22,"stopId":30},{"seq":23,"stopId":20},{"seq":24,"stopId":15},{"seq":25,"stopId":10},{"seq":26,"stopId":1}]}]},{"code":"614","nameZh":"屯門碼頭 ↔ 元朗","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"元朗","destEn":"Yuen Long","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":240},{"seq":3,"stopId":250},{"seq":4,"stopId":260},{"seq":5,"stopId":265},{"seq":6,"stopId":270},{"seq":7,"stopId":280},{"seq":8,"stopId":300},{"seq":9,"stopId":310},{"seq":10,"stopId":320},{"seq":11,"stopId":330},{"seq":12,"stopId":340},{"seq":13,"stopId":100},{"seq":14,"stopId":350},{"seq":15,"stopId":360},{"seq":16,"stopId":370},{"seq":17,"stopId":380},{"seq":18,"stopId":390},{"seq":19,"stopId":400},{"seq":20,"stopId":560},{"seq":21,"stopId":570},{"seq":22,"stopId":580},{"seq":23,"stopId":590},{"seq":24,"stopId":600}]},{"dir":2,"origZh":"元朗","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":600},{"seq":2,"stopId":590},{"seq":3,"stopId":580},{"seq":4,"stopId":570},{"seq":5,"stopId":560},{"seq":6,"stopId":400},{"seq":7,"stopId":390},{"seq":8,"stopId":380},{"seq":9,"stopId":370},{"seq":10,"stopId":360},{"seq":11,"stopId":350},{"seq":12,"stopId":100},{"seq":13,"stopId":340},{"seq":14,"stopId":330},{"seq":15,"stopId":320},{"seq":16,"stopId":310},{"seq":17,"stopId":300},{"seq":18,"stopId":280},{"seq":19,"stopId":270},{"seq":20,"stopId":265},{"seq":21,"stopId":260},{"seq":22,"stopId":250},{"seq":23,"stopId":240},{"seq":24,"stopId":1}]}]},{"code":"614P","nameZh":"屯門碼頭 ↔ 兆康","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"兆康","destEn":"Siu Hong","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":240},{"seq":3,"stopId":250},{"seq":4,"stopId":260},{"seq":5,"stopId":265},{"seq":6,"stopId":270},{"seq":7,"stopId":280},{"seq":8,"stopId":300},{"seq":9,"stopId":310},{"seq":10,"stopId":320},{"seq":11,"stopId":330},{"seq":12,"stopId":340},{"seq":13,"stopId":100}]},{"dir":2,"origZh":"兆康","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":100},{"seq":2,"stopId":340},{"seq":3,"stopId":330},{"seq":4,"stopId":320},{"seq":5,"stopId":310},{"seq":6,"stopId":300},{"seq":7,"stopId":280},{"seq":8,"stopId":270},{"seq":9,"stopId":265},{"seq":10,"stopId":260},{"seq":11,"stopId":250},{"seq":12,"stopId":240},{"seq":13,"stopId":1}]}]},{"code":"615","nameZh":"屯門碼頭 ↔ 元朗","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"元朗","destEn":"Yuen Long","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":10},{"seq":3,"stopId":15},{"seq":4,"stopId":20},{"seq":5,"stopId":30},{"seq":6,"stopId":40},{"seq":7,"stopId":50},{"seq":8,"stopId":200},{"seq":9,"stopId":170},{"seq":10,"stopId":160},{"seq":11,"stopId":150},{"seq":12,"stopId":140},{"seq":13,"stopId":130},{"seq":14,"stopId":120},{"seq":15,"stopId":100},{"seq":16,"stopId":350},{"seq":17,"stopId":360},{"seq":18,"stopId":370},{"seq":19,"stopId":380},{"seq":20,"stopId":390},{"seq":21,"stopId":400},{"seq":22,"stopId":560},{"seq":23,"stopId":570},{"seq":24,"stopId":580},{"seq":25,"stopId":590},{"seq":26,"stopId":600}]},{"dir":2,"origZh":"元朗","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":600},{"seq":2,"stopId":590},{"seq":3,"stopId":580},{"seq":4,"stopId":570},{"seq":5,"stopId":560},{"seq":6,"stopId":400},{"seq":7,"stopId":390},{"seq":8,"stopId":380},{"seq":9,"stopId":370},{"seq":10,"stopId":360},{"seq":11,"stopId":350},{"seq":12,"stopId":100},{"seq":13,"stopId":120},{"seq":14,"stopId":130},{"seq":15,"stopId":140},{"seq":16,"stopId":150},{"seq":17,"stopId":160},{"seq":18,"stopId":170},{"seq":19,"stopId":200},{"seq":20,"stopId":50},{"seq":21,"stopId":40},{"seq":22,"stopId":30},{"seq":23,"stopId":20},{"seq":24,"stopId":15},{"seq":25,"stopId":10},{"seq":26,"stopId":1}]}]},{"code":"615P","nameZh":"屯門碼頭 ↔ 兆康","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"兆康","destEn":"Siu Hong","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":10},{"seq":3,"stopId":15},{"seq":4,"stopId":20},{"seq":5,"stopId":30},{"seq":6,"stopId":40},{"seq":7,"stopId":50},{"seq":8,"stopId":200},{"seq":9,"stopId":170},{"seq":10,"stopId":160},{"seq":11,"stopId":150},{"seq":12,"stopId":140},{"seq":13,"stopId":130},{"seq":14,"stopId":120},{"seq":15,"stopId":110},{"seq":16,"stopId":100}]},{"dir":2,"origZh":"兆康","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":100},{"seq":2,"stopId":110},{"seq":3,"stopId":120},{"seq":4,"stopId":130},{"seq":5,"stopId":140},{"seq":6,"stopId":150},{"seq":7,"stopId":160},{"seq":8,"stopId":170},{"seq":9,"stopId":200},{"seq":10,"stopId":50},{"seq":11,"stopId":40},{"seq":12,"stopId":30},{"seq":13,"stopId":20},{"seq":14,"stopId":15},{"seq":15,"stopId":10},{"seq":16,"stopId":1}]}]},{"code":"705","nameZh":"天水圍循環（經天慈）","circular":true,"directions":[{"dir":1,"origZh":"天水圍","destZh":"天水圍循環綫","destEn":"Tin Shui Wai Circular","stops":[{"seq":1,"stopId":430},{"seq":2,"stopId":435},{"seq":3,"stopId":450},{"seq":4,"stopId":455},{"seq":5,"stopId":500}]},{"dir":2,"origZh":"天榮","destZh":"天水圍循環綫","destEn":"Tin Shui Wai Circular","stops":[{"seq":1,"stopId":500},{"seq":2,"stopId":510},{"seq":3,"stopId":520},{"seq":4,"stopId":530},{"seq":5,"stopId":540},{"seq":6,"stopId":550},{"seq":7,"stopId":480},{"seq":8,"stopId":468},{"seq":9,"stopId":460},{"seq":10,"stopId":448},{"seq":11,"stopId":445},{"seq":12,"stopId":430}]}]},{"code":"706","nameZh":"天水圍循環（經天耀）","circular":true,"directions":[{"dir":1,"origZh":"天水圍","destZh":"天水圍循環綫","destEn":"Tin Shui Wai Circular","stops":[{"seq":1,"stopId":430},{"seq":2,"stopId":445},{"seq":3,"stopId":448},{"seq":4,"stopId":460},{"seq":5,"stopId":468},{"seq":6,"stopId":480},{"seq":7,"stopId":550},{"seq":8,"stopId":540},{"seq":9,"stopId":530},{"seq":10,"stopId":520},{"seq":11,"stopId":510},{"seq":12,"stopId":500}]},{"dir":2,"origZh":"天榮","destZh":"天水圍循環綫","destEn":"Tin Shui Wai Circular","stops":[{"seq":1,"stopId":500},{"seq":2,"stopId":455},{"seq":3,"stopId":450},{"seq":4,"stopId":435},{"seq":5,"stopId":430}]}]},{"code":"751","nameZh":"友愛 ↔ 天逸","circular":false,"directions":[{"dir":1,"origZh":"友愛","destZh":"天逸","destEn":"Tin Yat","stops":[{"seq":1,"stopId":275},{"seq":2,"stopId":270},{"seq":3,"stopId":280},{"seq":4,"stopId":295},{"seq":5,"stopId":70},{"seq":6,"stopId":75},{"seq":7,"stopId":80},{"seq":8,"stopId":90},{"seq":9,"stopId":100},{"seq":10,"stopId":350},{"seq":11,"stopId":360},{"seq":12,"stopId":370},{"seq":13,"stopId":380},{"seq":14,"stopId":425},{"seq":15,"stopId":430},{"seq":16,"stopId":435},{"seq":17,"stopId":450},{"seq":18,"stopId":455},{"seq":19,"stopId":500},{"seq":20,"stopId":490},{"seq":21,"stopId":468},{"seq":22,"stopId":480},{"seq":23,"stopId":550}]},{"dir":2,"origZh":"天逸","destZh":"友愛","destEn":"Yau Oi","stops":[{"seq":1,"stopId":550},{"seq":2,"stopId":480},{"seq":3,"stopId":468},{"seq":4,"stopId":490},{"seq":5,"stopId":500},{"seq":6,"stopId":455},{"seq":7,"stopId":450},{"seq":8,"stopId":435},{"seq":9,"stopId":430},{"seq":10,"stopId":425},{"seq":11,"stopId":380},{"seq":12,"stopId":370},{"seq":13,"stopId":360},{"seq":14,"stopId":350},{"seq":15,"stopId":100},{"seq":16,"stopId":90},{"seq":17,"stopId":80},{"seq":18,"stopId":75},{"seq":19,"stopId":70},{"seq":20,"stopId":295},{"seq":21,"stopId":280},{"seq":22,"stopId":275}]}]},{"code":"761P","nameZh":"天逸 ↔ 元朗","circular":false,"directions":[{"dir":1,"origZh":"天逸","destZh":"元朗","destEn":"Yuen Long","stops":[{"seq":1,"stopId":550},{"seq":2,"stopId":480},{"seq":3,"stopId":468},{"seq":4,"stopId":460},{"seq":5,"stopId":448},{"seq":6,"stopId":445},{"seq":7,"stopId":425},{"seq":8,"stopId":390},{"seq":9,"stopId":400},{"seq":10,"stopId":560},{"seq":11,"stopId":570},{"seq":12,"stopId":580},{"seq":13,"stopId":590},{"seq":14,"stopId":600}]},{"dir":2,"origZh":"元朗","destZh":"天逸","destEn":"Tin Yat","stops":[{"seq":1,"stopId":600},{"seq":2,"stopId":590},{"seq":3,"stopId":580},{"seq":4,"stopId":570},{"seq":5,"stopId":560},{"seq":6,"stopId":400},{"seq":7,"stopId":390},{"seq":8,"stopId":425},{"seq":9,"stopId":445},{"seq":10,"stopId":448},{"seq":11,"stopId":460},{"seq":12,"stopId":468},{"seq":13,"stopId":480},{"seq":14,"stopId":550}]}]}],"ZONE_ORDER":["屯門碼頭","屯門南","屯門市中心","屯門北","屯門至元朗","天水圍"],"POPULAR_STOP_IDS":[600,430,295,100,1,280,550,500]};
+  const DATA = {"STOPS":[{"id":1,"nameZh":"屯門碼頭","nameEn":"Tuen Mun Ferry Pier","code":"FEP","zone":"1區","interchangeTml":false,"aliases":["碼頭"]},{"id":10,"nameZh":"美樂","nameEn":"Melody Garden","code":"MEG","zone":"1區","interchangeTml":false,"aliases":[]},{"id":15,"nameZh":"蝴蝶","nameEn":"Butterfly","code":"BUT","zone":"1區","interchangeTml":false,"aliases":[]},{"id":20,"nameZh":"輕鐵車廠","nameEn":"Light Rail Depot","code":"LRD","zone":"1區","interchangeTml":false,"aliases":[]},{"id":30,"nameZh":"龍門","nameEn":"Lung Mun","code":"LUM","zone":"1區","interchangeTml":false,"aliases":[]},{"id":40,"nameZh":"青山村","nameEn":"Tsing Shan Tsuen","code":"TSS","zone":"2區","interchangeTml":false,"aliases":[]},{"id":50,"nameZh":"青雲","nameEn":"Tsing Wun","code":"TWN","zone":"2區","interchangeTml":false,"aliases":[]},{"id":60,"nameZh":"建安","nameEn":"Kin On","code":"KIO","zone":"2區","interchangeTml":false,"aliases":[]},{"id":70,"nameZh":"河田","nameEn":"Ho Tin","code":"HOT","zone":"2區","interchangeTml":false,"aliases":[]},{"id":75,"nameZh":"蔡意橋","nameEn":"Choy Yee Bridge","code":"CYB","zone":"2區","interchangeTml":false,"aliases":[]},{"id":80,"nameZh":"澤豐","nameEn":"Affluence","code":"AFF","zone":"2區","interchangeTml":false,"aliases":[]},{"id":90,"nameZh":"屯門醫院","nameEn":"Tuen Mun Hospital","code":"TMH","zone":"3區","interchangeTml":false,"aliases":[]},{"id":100,"nameZh":"兆康","nameEn":"Siu Hong","code":"SHL","zone":"3區","interchangeTml":true,"aliases":["兆康站"]},{"id":110,"nameZh":"麒麟","nameEn":"Kei Lun","code":"KEL","zone":"3區","interchangeTml":false,"aliases":[]},{"id":120,"nameZh":"青松","nameEn":"Ching Chung","code":"CHC","zone":"3區","interchangeTml":false,"aliases":[]},{"id":130,"nameZh":"建生","nameEn":"Kin Sang","code":"KIS","zone":"3區","interchangeTml":false,"aliases":[]},{"id":140,"nameZh":"田景","nameEn":"Tin King","code":"TNK","zone":"3區","interchangeTml":false,"aliases":[]},{"id":150,"nameZh":"良景","nameEn":"Leung King","code":"LEK","zone":"3區","interchangeTml":false,"aliases":[]},{"id":160,"nameZh":"新圍","nameEn":"San Wai","code":"SAW","zone":"3區","interchangeTml":false,"aliases":[]},{"id":170,"nameZh":"石排","nameEn":"Shek Pai","code":"SHP","zone":"2區","interchangeTml":false,"aliases":[]},{"id":180,"nameZh":"山景(北)","nameEn":"Shan King (North)","code":"SKN","zone":"2區","interchangeTml":false,"aliases":["山景北","山景"]},{"id":190,"nameZh":"山景(南)","nameEn":"Shan King (South)","code":"SKS","zone":"2區","interchangeTml":false,"aliases":["山景南","山景"]},{"id":200,"nameZh":"鳴琴","nameEn":"Ming Kum","code":"MIK","zone":"2區","interchangeTml":false,"aliases":[]},{"id":212,"nameZh":"大興(北)","nameEn":"Tai Hing (North)","code":"THN","zone":"2區","interchangeTml":false,"aliases":["大興北","大興"]},{"id":220,"nameZh":"大興(南)","nameEn":"Tai Hing (South)","code":"THS","zone":"2區","interchangeTml":false,"aliases":["大興南","大興"]},{"id":230,"nameZh":"銀圍","nameEn":"Ngan Wai","code":"NGW","zone":"2區","interchangeTml":false,"aliases":[]},{"id":240,"nameZh":"兆禧","nameEn":"Siu Hei","code":"SHE","zone":"1區","interchangeTml":false,"aliases":[]},{"id":250,"nameZh":"海皇路","nameEn":"Hoi Wong Road","code":"TSP","zone":"1區","interchangeTml":false,"aliases":["屯門泳池","泳池","Tuen Mun Swimming Pool"]},{"id":260,"nameZh":"豐景園","nameEn":"Goodview Garden","code":"GOG","zone":"1區","interchangeTml":false,"aliases":[]},{"id":265,"nameZh":"兆麟","nameEn":"Siu Lun","code":"SIL","zone":"1區","interchangeTml":false,"aliases":[]},{"id":270,"nameZh":"安定","nameEn":"On Ting","code":"ONT","zone":"2區","interchangeTml":false,"aliases":[]},{"id":275,"nameZh":"友愛","nameEn":"Yau Oi","code":"YAO","zone":"2區","interchangeTml":false,"aliases":[]},{"id":280,"nameZh":"市中心","nameEn":"Town Centre","code":"TOC","zone":"2區","interchangeTml":false,"aliases":["屯門市中心","市中"]},{"id":295,"nameZh":"屯門","nameEn":"Tuen Mun","code":"TML","zone":"2區","interchangeTml":true,"aliases":["屯門站"]},{"id":300,"nameZh":"杯渡","nameEn":"Pui To","code":"PUT","zone":"2區","interchangeTml":false,"aliases":[]},{"id":310,"nameZh":"何福堂","nameEn":"Hoh Fuk Tong","code":"HFT","zone":"2區","interchangeTml":false,"aliases":[]},{"id":320,"nameZh":"新墟","nameEn":"San Hui","code":"SAH","zone":"2區","interchangeTml":false,"aliases":[]},{"id":330,"nameZh":"景峰","nameEn":"Prime View","code":"PRV","zone":"2區","interchangeTml":false,"aliases":[]},{"id":340,"nameZh":"鳳地","nameEn":"Fung Tei","code":"FUT","zone":"3區","interchangeTml":false,"aliases":[]},{"id":350,"nameZh":"藍地","nameEn":"Lam Tei","code":"LTE","zone":"3區","interchangeTml":false,"aliases":[]},{"id":360,"nameZh":"泥圍","nameEn":"Nai Wai","code":"NAW","zone":"3區","interchangeTml":false,"aliases":[]},{"id":370,"nameZh":"鍾屋村","nameEn":"Chung Uk Tsuen","code":"CUT","zone":"3區","interchangeTml":false,"aliases":[]},{"id":380,"nameZh":"洪水橋","nameEn":"Hung Shui Kiu","code":"HSK","zone":"4區","interchangeTml":false,"aliases":[]},{"id":390,"nameZh":"塘坊村","nameEn":"Tong Fong Tsuen","code":"TOF","zone":"4區","interchangeTml":false,"aliases":[]},{"id":400,"nameZh":"屏山","nameEn":"Ping Shan","code":"PIS","zone":"4區","interchangeTml":false,"aliases":[]},{"id":425,"nameZh":"坑尾村","nameEn":"Hang Mei Tsuen","code":"HMT","zone":"4區","interchangeTml":false,"aliases":[]},{"id":430,"nameZh":"天水圍","nameEn":"Tin Shui Wai","code":"TSL","zone":"4區","interchangeTml":true,"aliases":["天水圍站"]},{"id":435,"nameZh":"天慈","nameEn":"Tin Tsz","code":"TIT","zone":"4區","interchangeTml":false,"aliases":[]},{"id":445,"nameZh":"天耀","nameEn":"Tin Yiu","code":"TIY","zone":"4區","interchangeTml":false,"aliases":[]},{"id":448,"nameZh":"樂湖","nameEn":"Locwood","code":"LOC","zone":"4區","interchangeTml":false,"aliases":[]},{"id":450,"nameZh":"天湖","nameEn":"Tin Wu","code":"TWU","zone":"4區","interchangeTml":false,"aliases":[]},{"id":455,"nameZh":"銀座","nameEn":"Ginza","code":"GIN","zone":"4區","interchangeTml":false,"aliases":[]},{"id":460,"nameZh":"天瑞","nameEn":"Tin Shui","code":"TSU","zone":"4區","interchangeTml":false,"aliases":[]},{"id":468,"nameZh":"頌富","nameEn":"Chung Fu","code":"CHF","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":480,"nameZh":"天富","nameEn":"Tin Fu","code":"TFU","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":490,"nameZh":"翠湖","nameEn":"Chestwood","code":"CHE","zone":"4區","interchangeTml":false,"aliases":[]},{"id":500,"nameZh":"天榮","nameEn":"Tin Wing","code":"TWI","zone":"4區","interchangeTml":false,"aliases":[]},{"id":510,"nameZh":"天悅","nameEn":"Tin Yuet","code":"TYU","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":520,"nameZh":"天秀","nameEn":"Tin Sau","code":"TSA","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":530,"nameZh":"濕地公園","nameEn":"Wetland Park","code":"WEP","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":540,"nameZh":"天恒","nameEn":"Tin Heng","code":"THE","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":550,"nameZh":"天逸","nameEn":"Tin Yat","code":"TYA","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":560,"nameZh":"水邊圍","nameEn":"Shui Pin Wai","code":"SPW","zone":"5區","interchangeTml":false,"aliases":[]},{"id":570,"nameZh":"豐年路","nameEn":"Fung Nin Road","code":"FNR","zone":"5區","interchangeTml":false,"aliases":[]},{"id":580,"nameZh":"康樂路","nameEn":"Hong Lok Road","code":"HLR","zone":"5區","interchangeTml":false,"aliases":[]},{"id":590,"nameZh":"大棠路","nameEn":"Tai Tong Road","code":"TTR","zone":"5區","interchangeTml":false,"aliases":[]},{"id":600,"nameZh":"元朗","nameEn":"Yuen Long","code":"YLL","zone":"5區","interchangeTml":true,"aliases":["元朗站"]},{"id":920,"nameZh":"三聖","nameEn":"Sam Shing","code":"SAS","zone":"1區","interchangeTml":false,"aliases":[]}],"ROUTES":[{"code":"505","nameZh":"三聖 ↔ 兆康","circular":false,"directions":[{"dir":1,"origZh":"三聖","destZh":"兆康","destEn":"Siu Hong","stops":[{"seq":1,"stopId":920},{"seq":2,"stopId":265},{"seq":3,"stopId":270},{"seq":4,"stopId":280},{"seq":5,"stopId":295},{"seq":6,"stopId":60},{"seq":7,"stopId":190},{"seq":8,"stopId":180},{"seq":9,"stopId":170},{"seq":10,"stopId":160},{"seq":11,"stopId":150},{"seq":12,"stopId":140},{"seq":13,"stopId":130},{"seq":14,"stopId":120},{"seq":15,"stopId":110},{"seq":16,"stopId":100}]},{"dir":2,"origZh":"兆康","destZh":"三聖","destEn":"Sam Shing","stops":[{"seq":1,"stopId":100},{"seq":2,"stopId":120},{"seq":3,"stopId":130},{"seq":4,"stopId":140},{"seq":5,"stopId":150},{"seq":6,"stopId":160},{"seq":7,"stopId":170},{"seq":8,"stopId":200},{"seq":9,"stopId":60},{"seq":10,"stopId":295},{"seq":11,"stopId":280},{"seq":12,"stopId":270},{"seq":13,"stopId":265},{"seq":14,"stopId":920}]}]},{"code":"507","nameZh":"屯門碼頭 ↔ 田景","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"田景","destEn":"Tin King","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":240},{"seq":3,"stopId":250},{"seq":4,"stopId":260},{"seq":5,"stopId":265},{"seq":6,"stopId":270},{"seq":7,"stopId":280},{"seq":8,"stopId":295},{"seq":9,"stopId":70},{"seq":10,"stopId":75},{"seq":11,"stopId":230},{"seq":12,"stopId":220},{"seq":13,"stopId":212},{"seq":14,"stopId":160},{"seq":15,"stopId":150},{"seq":16,"stopId":140}]},{"dir":2,"origZh":"田景","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":140},{"seq":2,"stopId":150},{"seq":3,"stopId":160},{"seq":4,"stopId":212},{"seq":5,"stopId":220},{"seq":6,"stopId":230},{"seq":7,"stopId":75},{"seq":8,"stopId":70},{"seq":9,"stopId":295},{"seq":10,"stopId":280},{"seq":11,"stopId":270},{"seq":12,"stopId":265},{"seq":13,"stopId":260},{"seq":14,"stopId":250},{"seq":15,"stopId":240},{"seq":16,"stopId":1}]}]},{"code":"610","nameZh":"屯門碼頭 ↔ 元朗","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"元朗","destEn":"Yuen Long","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":10},{"seq":3,"stopId":15},{"seq":4,"stopId":20},{"seq":5,"stopId":30},{"seq":6,"stopId":40},{"seq":7,"stopId":50},{"seq":8,"stopId":200},{"seq":9,"stopId":170},{"seq":10,"stopId":212},{"seq":11,"stopId":220},{"seq":12,"stopId":230},{"seq":13,"stopId":80},{"seq":14,"stopId":90},{"seq":15,"stopId":100},{"seq":16,"stopId":350},{"seq":17,"stopId":360},{"seq":18,"stopId":370},{"seq":19,"stopId":380},{"seq":20,"stopId":390},{"seq":21,"stopId":400},{"seq":22,"stopId":560},{"seq":23,"stopId":570},{"seq":24,"stopId":580},{"seq":25,"stopId":590},{"seq":26,"stopId":600}]},{"dir":2,"origZh":"元朗","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":600},{"seq":2,"stopId":590},{"seq":3,"stopId":580},{"seq":4,"stopId":570},{"seq":5,"stopId":560},{"seq":6,"stopId":400},{"seq":7,"stopId":390},{"seq":8,"stopId":380},{"seq":9,"stopId":370},{"seq":10,"stopId":360},{"seq":11,"stopId":350},{"seq":12,"stopId":100},{"seq":13,"stopId":90},{"seq":14,"stopId":80},{"seq":15,"stopId":230},{"seq":16,"stopId":220},{"seq":17,"stopId":212},{"seq":18,"stopId":170},{"seq":19,"stopId":200},{"seq":20,"stopId":50},{"seq":21,"stopId":40},{"seq":22,"stopId":30},{"seq":23,"stopId":20},{"seq":24,"stopId":15},{"seq":25,"stopId":10},{"seq":26,"stopId":1}]}]},{"code":"614","nameZh":"屯門碼頭 ↔ 元朗","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"元朗","destEn":"Yuen Long","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":240},{"seq":3,"stopId":250},{"seq":4,"stopId":260},{"seq":5,"stopId":265},{"seq":6,"stopId":270},{"seq":7,"stopId":280},{"seq":8,"stopId":300},{"seq":9,"stopId":310},{"seq":10,"stopId":320},{"seq":11,"stopId":330},{"seq":12,"stopId":340},{"seq":13,"stopId":100},{"seq":14,"stopId":350},{"seq":15,"stopId":360},{"seq":16,"stopId":370},{"seq":17,"stopId":380},{"seq":18,"stopId":390},{"seq":19,"stopId":400},{"seq":20,"stopId":560},{"seq":21,"stopId":570},{"seq":22,"stopId":580},{"seq":23,"stopId":590},{"seq":24,"stopId":600}]},{"dir":2,"origZh":"元朗","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":600},{"seq":2,"stopId":590},{"seq":3,"stopId":580},{"seq":4,"stopId":570},{"seq":5,"stopId":560},{"seq":6,"stopId":400},{"seq":7,"stopId":390},{"seq":8,"stopId":380},{"seq":9,"stopId":370},{"seq":10,"stopId":360},{"seq":11,"stopId":350},{"seq":12,"stopId":100},{"seq":13,"stopId":340},{"seq":14,"stopId":330},{"seq":15,"stopId":320},{"seq":16,"stopId":310},{"seq":17,"stopId":300},{"seq":18,"stopId":280},{"seq":19,"stopId":270},{"seq":20,"stopId":265},{"seq":21,"stopId":260},{"seq":22,"stopId":250},{"seq":23,"stopId":240},{"seq":24,"stopId":1}]}]},{"code":"614P","nameZh":"屯門碼頭 ↔ 兆康","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"兆康","destEn":"Siu Hong","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":240},{"seq":3,"stopId":250},{"seq":4,"stopId":260},{"seq":5,"stopId":265},{"seq":6,"stopId":270},{"seq":7,"stopId":280},{"seq":8,"stopId":300},{"seq":9,"stopId":310},{"seq":10,"stopId":320},{"seq":11,"stopId":330},{"seq":12,"stopId":340},{"seq":13,"stopId":100}]},{"dir":2,"origZh":"兆康","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":100},{"seq":2,"stopId":340},{"seq":3,"stopId":330},{"seq":4,"stopId":320},{"seq":5,"stopId":310},{"seq":6,"stopId":300},{"seq":7,"stopId":280},{"seq":8,"stopId":270},{"seq":9,"stopId":265},{"seq":10,"stopId":260},{"seq":11,"stopId":250},{"seq":12,"stopId":240},{"seq":13,"stopId":1}]}]},{"code":"615","nameZh":"屯門碼頭 ↔ 元朗","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"元朗","destEn":"Yuen Long","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":10},{"seq":3,"stopId":15},{"seq":4,"stopId":20},{"seq":5,"stopId":30},{"seq":6,"stopId":40},{"seq":7,"stopId":50},{"seq":8,"stopId":200},{"seq":9,"stopId":170},{"seq":10,"stopId":160},{"seq":11,"stopId":150},{"seq":12,"stopId":140},{"seq":13,"stopId":130},{"seq":14,"stopId":120},{"seq":15,"stopId":100},{"seq":16,"stopId":350},{"seq":17,"stopId":360},{"seq":18,"stopId":370},{"seq":19,"stopId":380},{"seq":20,"stopId":390},{"seq":21,"stopId":400},{"seq":22,"stopId":560},{"seq":23,"stopId":570},{"seq":24,"stopId":580},{"seq":25,"stopId":590},{"seq":26,"stopId":600}]},{"dir":2,"origZh":"元朗","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":600},{"seq":2,"stopId":590},{"seq":3,"stopId":580},{"seq":4,"stopId":570},{"seq":5,"stopId":560},{"seq":6,"stopId":400},{"seq":7,"stopId":390},{"seq":8,"stopId":380},{"seq":9,"stopId":370},{"seq":10,"stopId":360},{"seq":11,"stopId":350},{"seq":12,"stopId":100},{"seq":13,"stopId":120},{"seq":14,"stopId":130},{"seq":15,"stopId":140},{"seq":16,"stopId":150},{"seq":17,"stopId":160},{"seq":18,"stopId":170},{"seq":19,"stopId":200},{"seq":20,"stopId":50},{"seq":21,"stopId":40},{"seq":22,"stopId":30},{"seq":23,"stopId":20},{"seq":24,"stopId":15},{"seq":25,"stopId":10},{"seq":26,"stopId":1}]}]},{"code":"615P","nameZh":"屯門碼頭 ↔ 兆康","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"兆康","destEn":"Siu Hong","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":10},{"seq":3,"stopId":15},{"seq":4,"stopId":20},{"seq":5,"stopId":30},{"seq":6,"stopId":40},{"seq":7,"stopId":50},{"seq":8,"stopId":200},{"seq":9,"stopId":170},{"seq":10,"stopId":160},{"seq":11,"stopId":150},{"seq":12,"stopId":140},{"seq":13,"stopId":130},{"seq":14,"stopId":120},{"seq":15,"stopId":110},{"seq":16,"stopId":100}]},{"dir":2,"origZh":"兆康","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":100},{"seq":2,"stopId":110},{"seq":3,"stopId":120},{"seq":4,"stopId":130},{"seq":5,"stopId":140},{"seq":6,"stopId":150},{"seq":7,"stopId":160},{"seq":8,"stopId":170},{"seq":9,"stopId":200},{"seq":10,"stopId":50},{"seq":11,"stopId":40},{"seq":12,"stopId":30},{"seq":13,"stopId":20},{"seq":14,"stopId":15},{"seq":15,"stopId":10},{"seq":16,"stopId":1}]}]},{"code":"705","nameZh":"天水圍循環（經天慈）","circular":true,"directions":[{"dir":1,"origZh":"天水圍","destZh":"天水圍循環綫","destEn":"Tin Shui Wai Circular","stops":[{"seq":1,"stopId":430},{"seq":2,"stopId":435},{"seq":3,"stopId":450},{"seq":4,"stopId":455},{"seq":5,"stopId":500}]},{"dir":2,"origZh":"天榮","destZh":"天水圍循環綫","destEn":"Tin Shui Wai Circular","stops":[{"seq":1,"stopId":500},{"seq":2,"stopId":510},{"seq":3,"stopId":520},{"seq":4,"stopId":530},{"seq":5,"stopId":540},{"seq":6,"stopId":550},{"seq":7,"stopId":480},{"seq":8,"stopId":468},{"seq":9,"stopId":460},{"seq":10,"stopId":448},{"seq":11,"stopId":445},{"seq":12,"stopId":430}]}]},{"code":"706","nameZh":"天水圍循環（經天耀）","circular":true,"directions":[{"dir":1,"origZh":"天水圍","destZh":"天水圍循環綫","destEn":"Tin Shui Wai Circular","stops":[{"seq":1,"stopId":430},{"seq":2,"stopId":445},{"seq":3,"stopId":448},{"seq":4,"stopId":460},{"seq":5,"stopId":468},{"seq":6,"stopId":480},{"seq":7,"stopId":550},{"seq":8,"stopId":540},{"seq":9,"stopId":530},{"seq":10,"stopId":520},{"seq":11,"stopId":510},{"seq":12,"stopId":500}]},{"dir":2,"origZh":"天榮","destZh":"天水圍循環綫","destEn":"Tin Shui Wai Circular","stops":[{"seq":1,"stopId":500},{"seq":2,"stopId":455},{"seq":3,"stopId":450},{"seq":4,"stopId":435},{"seq":5,"stopId":430}]}]},{"code":"751","nameZh":"友愛 ↔ 天逸","circular":false,"directions":[{"dir":1,"origZh":"友愛","destZh":"天逸","destEn":"Tin Yat","stops":[{"seq":1,"stopId":275},{"seq":2,"stopId":270},{"seq":3,"stopId":280},{"seq":4,"stopId":295},{"seq":5,"stopId":70},{"seq":6,"stopId":75},{"seq":7,"stopId":80},{"seq":8,"stopId":90},{"seq":9,"stopId":100},{"seq":10,"stopId":350},{"seq":11,"stopId":360},{"seq":12,"stopId":370},{"seq":13,"stopId":380},{"seq":14,"stopId":425},{"seq":15,"stopId":430},{"seq":16,"stopId":435},{"seq":17,"stopId":450},{"seq":18,"stopId":455},{"seq":19,"stopId":500},{"seq":20,"stopId":490},{"seq":21,"stopId":468},{"seq":22,"stopId":480},{"seq":23,"stopId":550}]},{"dir":2,"origZh":"天逸","destZh":"友愛","destEn":"Yau Oi","stops":[{"seq":1,"stopId":550},{"seq":2,"stopId":480},{"seq":3,"stopId":468},{"seq":4,"stopId":490},{"seq":5,"stopId":500},{"seq":6,"stopId":455},{"seq":7,"stopId":450},{"seq":8,"stopId":435},{"seq":9,"stopId":430},{"seq":10,"stopId":425},{"seq":11,"stopId":380},{"seq":12,"stopId":370},{"seq":13,"stopId":360},{"seq":14,"stopId":350},{"seq":15,"stopId":100},{"seq":16,"stopId":90},{"seq":17,"stopId":80},{"seq":18,"stopId":75},{"seq":19,"stopId":70},{"seq":20,"stopId":295},{"seq":21,"stopId":280},{"seq":22,"stopId":275}]}]},{"code":"761P","nameZh":"天逸 ↔ 元朗","circular":false,"directions":[{"dir":1,"origZh":"天逸","destZh":"元朗","destEn":"Yuen Long","stops":[{"seq":1,"stopId":550},{"seq":2,"stopId":480},{"seq":3,"stopId":468},{"seq":4,"stopId":460},{"seq":5,"stopId":448},{"seq":6,"stopId":445},{"seq":7,"stopId":425},{"seq":8,"stopId":390},{"seq":9,"stopId":400},{"seq":10,"stopId":560},{"seq":11,"stopId":570},{"seq":12,"stopId":580},{"seq":13,"stopId":590},{"seq":14,"stopId":600}]},{"dir":2,"origZh":"元朗","destZh":"天逸","destEn":"Tin Yat","stops":[{"seq":1,"stopId":600},{"seq":2,"stopId":590},{"seq":3,"stopId":580},{"seq":4,"stopId":570},{"seq":5,"stopId":560},{"seq":6,"stopId":400},{"seq":7,"stopId":390},{"seq":8,"stopId":425},{"seq":9,"stopId":445},{"seq":10,"stopId":448},{"seq":11,"stopId":460},{"seq":12,"stopId":468},{"seq":13,"stopId":480},{"seq":14,"stopId":550}]}]}],"ZONE_ORDER":["1區","2區","3區","4區","5A區","5區"],"POPULAR_STOP_IDS":[600,430,295,100,1,280,550,500]};
   const API = "https://rt.data.gov.hk/v1/transport/mtr/lrt/getSchedule";
   const STOP_BY_ID = Object.fromEntries(DATA.STOPS.map((s) => [s.id, s]));
   const ROUTE_BY_CODE = Object.fromEntries(DATA.ROUTES.map((r) => [r.code, r]));
@@ -273,6 +299,7 @@
   const homeEl = $("home");
   const statusEl = $("status");
   const backBtn = $("backBtn");
+  const headerBackBtn = $("headerBackBtn");
 
   let selection = null;
   const slotCount = 2;
@@ -285,6 +312,8 @@
   let lastStation = null;
   let lastRoute = null;
   let inFlight = false;
+  let navStack = [];
+  let navigatingBack = false;
 
   try {
     const r = JSON.parse(localStorage.getItem(REFRESH_KEY) || "12");
@@ -460,9 +489,36 @@
     }
   }
 
+  function sameSel(a, b) {
+    if (!a || !b || a.kind !== b.kind) return false;
+    if (a.kind === "station") return a.id === b.id;
+    return a.code === b.code;
+  }
+  function rememberNav(next) {
+    if (navigatingBack || !selection || sameSel(selection, next)) return;
+    navStack.push({ kind: selection.kind, id: selection.id, code: selection.code });
+    if (navStack.length > 32) navStack.shift();
+  }
+  function setBackVisible(on) {
+    backBtn.hidden = !on;
+    headerBackBtn.hidden = !on;
+    document.body.classList.toggle("has-back", on);
+  }
+  function goBack() {
+    const prev = navStack.pop();
+    if (!prev) { goHome(); return; }
+    navigatingBack = true;
+    try {
+      if (prev.kind === "station") selectStation(prev.id, false);
+      else selectRoute(prev.code, false);
+    } finally {
+      navigatingBack = false;
+    }
+  }
+
   function renderHome() {
     statusEl.hidden = true;
-    backBtn.hidden = true;
+    setBackVisible(false);
     boardEl.innerHTML = "";
     const favs = favorites().map((id) => STOP_BY_ID[id]).filter(Boolean);
     let html = "";
@@ -535,7 +591,7 @@
 
   function setStatus(title, sub) {
     statusEl.hidden = false;
-    backBtn.hidden = false;
+    setBackVisible(true);
     $("statusTitle").innerHTML = title;
     $("statusSub").textContent = sub || "";
     startClock();
@@ -553,12 +609,14 @@
 
   async function selectStation(id, silent) {
     const switching = !silent;
-    selection = { kind: "station", id };
+    const next = { kind: "station", id };
+    if (switching) rememberNav(next);
+    selection = next;
     setHash("station", id);
     homeEl.innerHTML = "";
     const stop = STOP_BY_ID[id];
     if (switching) {
-      setStatus(esc(stop ? stop.nameZh : "車站 " + id), stop ? stop.nameEn : "");
+      setStatus('<span class="zh-name">' + esc(stop ? stop.nameZh : "車站 " + id) + "</span>", stop ? stop.nameEn : "");
       if (!boardEl.querySelector("[data-station-board]")) {
         boardEl.innerHTML = '<div class="card loading">正在載入月台班次…</div>';
       }
@@ -599,6 +657,49 @@
     return groups;
   }
 
+  function platsSkipNumbers(plats) {
+    if (!plats.length) return false;
+    const ids = plats.map((p) => Number(p.id)).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+    for (let i = 0; i < ids.length; i++) {
+      if (ids[i] !== i + 1) return true;
+    }
+    return false;
+  }
+  function platNoteHtml() {
+    return '<p class="plat-note muted" data-plat-note="1">僅列出目前有班次的月台</p>';
+  }
+  function syncPlatNote(plats) {
+    const want = platsSkipNumbers(plats);
+    const note = boardEl.querySelector("[data-plat-note]");
+    if (want && !note) {
+      const el = document.createElement("p");
+      el.className = "plat-note muted";
+      el.setAttribute("data-plat-note", "1");
+      el.textContent = "僅列出目前有班次的月台";
+      const head = boardEl.querySelector("[data-station-board]");
+      if (head) head.insertAdjacentElement("afterend", el);
+      else boardEl.prepend(el);
+    } else if (!want && note) {
+      note.remove();
+    }
+  }
+
+  function platHeading(p) {
+    const dests = [];
+    const seen = new Set();
+    for (const g of groupPlatTrains(p.trains)) {
+      const d = String(g.dest || "").trim();
+      if (!d || seen.has(d)) continue;
+      seen.add(d);
+      dests.push(d);
+    }
+    let html = "<h3 class=\"plat\">月台 " + p.id;
+    if (dests.length) {
+      html += '<span class="plat-dest">（前往：' + dests.map(esc).join("、") + "）</span>";
+    }
+    return html + "</h3>";
+  }
+
   function platBody(p) {
     const groups = groupPlatTrains(p.trains);
     return groups.map((g) => {
@@ -629,8 +730,9 @@
     if (error) html += '<div class="card"><p class="warn">未能取得到站資料，請稍後再試。</p></div>';
     else if (!plats.length) html += '<div class="card"><p class="muted">此站暫時沒有即將到站的列車。</p></div>';
     else {
+      if (platsSkipNumbers(plats)) html += platNoteHtml();
       for (const p of plats) {
-        html += '<div class="card" data-plat="' + p.id + '"><h3 class="plat">月台 ' + p.id + "</h3>" + platBody(p) + "</div>";
+        html += '<div class="card" data-plat="' + p.id + '">' + platHeading(p) + platBody(p) + "</div>";
       }
     }
     boardEl.innerHTML = html;
@@ -655,7 +757,7 @@
         card.setAttribute("data-plat", String(p.id));
         boardEl.appendChild(card);
       }
-      const nextBody = '<h3 class="plat">月台 ' + p.id + "</h3>" + platBody(p);
+      const nextBody = platHeading(p) + platBody(p);
       if (card.innerHTML !== nextBody) {
         const prev = {};
         card.querySelectorAll("[data-pills]").forEach((el) => { prev[el.getAttribute("data-pills")] = el.innerHTML; });
@@ -674,6 +776,7 @@
     boardEl.querySelectorAll("[data-plat]").forEach((card) => {
       if (!seenPlat.has(card.getAttribute("data-plat"))) card.remove();
     });
+    syncPlatNote(plats);
     bindFav(id, schedule, error);
   }
 
@@ -710,7 +813,9 @@
 
   async function selectRoute(code, silent) {
     const switching = !silent;
-    selection = { kind: "route", code };
+    const next = { kind: "route", code };
+    if (switching) rememberNav(next);
+    selection = next;
     setHash("route", code);
     homeEl.innerHTML = "";
     const route = ROUTE_BY_CODE[code];
@@ -749,11 +854,11 @@
     boardEl.innerHTML = dirs.map((d) => {
       let html = '<div class="card" data-route-board="1">' + badge(code) +
         ' <span class="dir-tag">' + (d.circular ? "循環線" : d.dir === 1 ? "去程" : "回程") + "</span>";
-      html += '<div class="dir-title">' + esc(d.origZh) + ' <span class="arrow">→</span> ' + esc(d.destZh) + "</div>";
+      html += '<div class="dir-title"><span class="zh-name">' + esc(d.origZh) + '</span> <span class="arrow">→</span> <span class="zh-name">' + esc(d.destZh) + "</span></div>";
       html += '<p class="desc">' + d.stops.length + " 個車站</p>";
       html += d.stops.map((st) => {
         return '<div class="stop-row"><button type="button" class="stop-name" data-st="' + st.stopId + '">' +
-          st.seq + ". " + esc(st.nameZh) +
+          st.seq + '. <span class="zh-name">' + esc(st.nameZh) + "</span>" +
           '<div class="meta">' + esc(st.nameEn) + (st.interchangeTml ? " · 屯馬綫" : "") + "</div></button>" +
           pills(st.trains, st.error ? "暫時無法取得" : "沒有班次", d.dir + "-" + st.stopId) + "</div>";
       }).join("");
@@ -785,6 +890,8 @@
   function goHome() {
     nonce += 1;
     selection = null;
+    navStack = [];
+    navigatingBack = false;
     setHash("home");
     if (timer) clearInterval(timer);
     suggestEl.hidden = true;
@@ -841,7 +948,8 @@
     const rt = e.target.closest("[data-rt]");
     if (rt) { selectRoute(rt.getAttribute("data-rt")); }
   });
-  backBtn.addEventListener("click", goHome);
+  backBtn.addEventListener("click", goBack);
+  headerBackBtn.addEventListener("click", goBack);
   $("homeBtn").addEventListener("click", goHome);
   $("refreshBtn").addEventListener("click", reload);
   $("refreshEvery").addEventListener("change", (e) => {
