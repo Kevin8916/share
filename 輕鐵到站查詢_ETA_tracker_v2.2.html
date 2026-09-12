@@ -1,0 +1,1228 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>輕鐵實時到站</title>
+  <meta name="theme-color" content="#0056b3">
+  <meta name="description" content="香港輕鐵實時到站查詢：按車站月台或路線沿線查看即將開出的班次。單檔 HTML，可離線開啟後連線查詢。">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="輕鐵到站">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%230056b3'/%3E%3Cpath fill='%23ffffff' d='M7 20.5h18v1.6H7z'/%3E%3Crect x='8.2' y='9' width='15.6' height='10.2' rx='2.2' fill='%23ffffff'/%3E%3Crect x='10' y='11' width='4.4' height='3.6' rx='.6' fill='%230056b3'/%3E%3Crect x='17.6' y='11' width='4.4' height='3.6' rx='.6' fill='%230056b3'/%3E%3Ccircle cx='11.4' cy='22.4' r='1.5' fill='%23ffffff'/%3E%3Ccircle cx='20.6' cy='22.4' r='1.5' fill='%23ffffff'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500;600&family=Noto+Sans+TC:wght@400;500;600;700&display=swap">
+  <style>
+    :root {
+      --bg: #f4f7f9;
+      --fg: #333333;
+      --card: #ffffff;
+      --muted: #666666;
+      --line: #e0e0e0;
+      --primary: #0056b3;
+      --primary-fg: #ffffff;
+      --warn: #c0392b;
+      --tml: #00706a;
+      --tml-fg: #ffffff;
+      --live: #e1f5fe;
+      --live-fg: #0288d1;
+      --now: #e8f5e9;
+      --now-fg: #2e7d32;
+      --gone: #fff3e0;
+      --gone-fg: #e65100;
+      --r-505: #b42318; --r-507: #a07a12; --r-610: #6b4a3a; --r-614: #2f6b38;
+      --r-614P: #4d7c3a; --r-615: #1c5c9a; --r-615P: #1a6f96; --r-705: #93335a;
+      --r-706: #0e7380; --r-751: #5c3a78; --r-761P: #c05612;
+      --radius: 12px;
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--fg); }
+    body {
+      font-family: "Noto Sans TC", "PingFang HK", "Microsoft JhengHei", "Segoe UI", sans-serif;
+      line-height: 1.5;
+      min-height: 100dvh;
+      padding: 20px 16px 32px;
+      padding-left: max(16px, env(safe-area-inset-left));
+      padding-right: max(16px, env(safe-area-inset-right));
+    }
+    button, [role="button"] { cursor: pointer; font-family: inherit; }
+    button:focus-visible, input:focus-visible, select:focus-visible {
+      outline: 2px solid var(--primary); outline-offset: 2px;
+    }
+    .wrap { width: 100%; max-width: 820px; margin: 0 auto; }
+    header { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; margin-bottom: 16px; }
+    .kicker { font-size: 11px; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin: 0; }
+    h1 { font-size: 1.65rem; margin: 4px 0 6px; letter-spacing: -0.02em; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; color: var(--primary); }
+    .ver { font-size: .85rem; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+    .sub { color: var(--muted); font-size: .9rem; margin: 0; }
+    .back {
+      border: 0; background: transparent; color: var(--fg); min-height: 44px; padding: 0 12px;
+      border-radius: 8px; font-size: .9rem; font-weight: 600;
+    }
+    .back:hover { background: #eef5ff; }
+    .back-fab {
+      position: fixed;
+      top: max(12px, env(safe-area-inset-top));
+      left: max(12px, env(safe-area-inset-left));
+      z-index: 40;
+      min-width: 44px; height: 44px; padding: 0 12px;
+      border: 1px solid var(--line); border-radius: 999px;
+      background: color-mix(in oklab, var(--card) 88%, transparent);
+      backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+      box-shadow: 0 4px 16px rgba(0,0,0,.12);
+      font-size: .8rem; font-weight: 700; color: var(--fg);
+    }
+    .back-fab:hover { background: var(--card); }
+    .back-fab[hidden] { display: none !important; }
+    @media (max-width: 860px) {
+      body.has-back header { padding-left: 52px; }
+    }
+    .search { display: flex; gap: 8px; position: relative; margin-bottom: 16px; }
+    .search-field { position: relative; flex: 1; min-width: 0; }
+    .search input {
+      width: 100%; height: 48px; border: 1px solid var(--line); background: var(--card);
+      border-radius: 12px; padding: 0 14px 0 42px; font-size: 16px; color: var(--fg); outline: none;
+    }
+    .search input:focus { box-shadow: 0 0 0 2px var(--primary); }
+    .search-ico {
+      position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+      width: 16px; height: 16px; color: var(--muted); pointer-events: none;
+    }
+    .go {
+      height: 48px; padding: 0 18px; border: 0; border-radius: 12px;
+      background: var(--primary); color: var(--primary-fg); font-weight: 600; font-size: .95rem;
+    }
+    .suggest {
+      position: absolute; left: 0; right: 0; top: calc(100% + 6px); z-index: 20;
+      background: var(--card); border: 1px solid var(--line); border-radius: 12px;
+      max-height: 320px; overflow: auto; box-shadow: 0 10px 28px rgba(0,0,0,.12);
+    }
+    .suggest button {
+      width: 100%; text-align: left; border: 0; background: transparent; padding: 12px 14px;
+      display: flex; align-items: center; gap: 10px;
+    }
+    .suggest button:hover, .suggest button.active { background: #eef5ff; }
+    .meta { color: var(--muted); font-size: .75rem; }
+    .grow { flex: 1; min-width: 0; }
+    .card {
+      background: var(--card); border: 1px solid var(--line); border-radius: 16px;
+      padding: 18px 18px 16px; margin-bottom: 14px; box-shadow: 0 2px 8px rgba(0,0,0,.06);
+    }
+    .card h2 { font-size: 1rem; margin: 0 0 4px; }
+    .card p.desc { margin: 0 0 12px; color: var(--muted); font-size: .85rem; }
+    .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+    .chip {
+      min-height: 44px; border: 1px solid var(--line); background: #fff; border-radius: 999px;
+      padding: 8px 14px; font-size: .9rem; color: var(--fg);
+    }
+    .chip:hover { background: #eef5ff; }
+    .chip.fav { background: #e8f4fd; font-weight: 600; }
+    .routes { display: grid; grid-template-columns: 1fr; gap: 8px; }
+    @media (min-width: 640px) { .routes { grid-template-columns: 1fr 1fr; } }
+    .route-btn {
+      display: flex; align-items: center; gap: 12px; text-align: left;
+      border: 1px solid var(--line); background: #fff; border-radius: 12px;
+      min-height: 56px; padding: 10px 12px; color: var(--fg);
+    }
+    .route-btn:hover { background: #eef5ff; }
+    .badge {
+      min-width: 44px; text-align: center; color: #ffffff; font-weight: 700;
+      font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+      font-size: .85rem; padding: 3px 8px; border-radius: 6px; letter-spacing: .04em;
+    }
+    .badge.r505 { background: var(--r-505); } .badge.r507 { background: var(--r-507); }
+    .badge.r610 { background: var(--r-610); } .badge.r614 { background: var(--r-614); }
+    .badge.r614P { background: var(--r-614P); } .badge.r615 { background: var(--r-615); }
+    .badge.r615P { background: var(--r-615P); } .badge.r705 { background: var(--r-705); }
+    .badge.r706 { background: var(--r-706); } .badge.r751 { background: var(--r-751); }
+    .badge.r761P { background: var(--r-761P); } .badge.fallback { background: var(--primary); }
+    .tml {
+      display: inline-flex; align-items: center; margin-left: 6px; font-size: 11px;
+      background: var(--tml); color: var(--tml-fg); border-radius: 999px; padding: 1px 7px; font-weight: 600;
+    }
+    .status {
+      display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px;
+      background: #e8f4fd; border: 1px solid #b6e0fe; border-radius: 12px;
+      padding: 10px 16px; margin-bottom: 14px; align-items: center;
+      color: #004085;
+    }
+    .status[hidden] { display: none !important; }
+    .status .label { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: #3d6d99; }
+    .controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; }
+    .control-group { display: inline-flex; align-items: center; gap: 6px; }
+    .controls label {
+      font-size: .88rem; font-weight: 700; color: #004085;
+    }
+    .slot-select {
+      height: 30px; box-sizing: border-box;
+      border: 1px solid #c5cdd6; background: #fff;
+      border-radius: 999px; padding: 0 26px 0 12px;
+      font-size: .88rem; font-weight: 700; color: #222; line-height: 1;
+      appearance: none; -webkit-appearance: none;
+      background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='%234a5560' d='M1.2 1.4L6 6.2l4.8-4.8'/%3E%3C/svg%3E");
+      background-repeat: no-repeat; background-position: right 10px center; background-size: 10px 7px;
+    }
+    .timer-wrap { display: inline-flex; align-items: center; gap: 6px; }
+    .timer {
+      min-width: 2.2em; height: 26px; display: inline-flex; align-items: center; justify-content: center;
+      padding: 0 10px; box-sizing: border-box;
+      background: #0056b3; color: #fff; border-radius: 999px;
+      font-size: .85rem; font-weight: 700; font-variant-numeric: tabular-nums;
+      font-family: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+    }
+    .timer-unit { font-size: .88rem; font-weight: 700; color: #004085; }
+    .head-row { display: flex; justify-content: space-between; gap: 12px; align-items: flex-start; }
+    .title { font-size: 1.45rem; margin: 0; }
+    .zh-name { font-size: 1.25em; }
+    .en { color: var(--muted); font-size: .9rem; margin: 4px 0 0; }
+    .star {
+      width: 44px; height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--card);
+      font-size: 1.1rem; line-height: 1;
+    }
+    .star.on { background: var(--primary); color: var(--primary-fg); border-color: var(--primary); }
+    .plat {
+      font-size: 1rem; margin: 0 0 6px; font-weight: 700;
+      display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 .35em;
+      line-height: 1.4;
+    }
+    .plat-dest { font-weight: 500; color: var(--muted); font-size: .9rem; }
+    .train {
+      width: 100%; display: flex; align-items: center; gap: 12px; text-align: left;
+      border: 0; background: transparent; padding: 10px 0; color: var(--fg); border-top: 1px solid var(--line);
+    }
+    .train:first-of-type { border-top: 0; }
+    .train:hover { background: #eef5ff; }
+    .dest { font-weight: 600; margin: 0; font-size: 1.25em; }
+    .tiny { font-size: .75rem; color: var(--muted); margin: 2px 0 0; }
+    .eta { font-weight: 700; font-variant-numeric: tabular-nums; margin-left: auto; }
+    .eta.now { color: var(--now-fg); }
+    .eta.gone { color: var(--gone-fg); }
+    .eta.min { color: var(--live-fg); }
+    .stop-row {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+      padding: 12px 0;
+      border-top: 1px dashed var(--line);
+    }
+    .stop-row:first-of-type { border-top: 0; }
+    .stop-name {
+      border: 0; background: transparent; text-align: left; padding: 0;
+      color: var(--fg); font-weight: 600; min-height: 36px;
+      align-self: flex-start; max-width: 100%;
+    }
+    .stop-name:hover { text-decoration: underline; }
+    .pills {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      align-self: flex-end;
+      width: 100%;
+    }
+    .pill {
+      display: inline-flex; align-items: center; gap: 8px; border-radius: 8px; border: 1px solid var(--line);
+      padding: 6px 10px; font-size: .85rem;
+      flex: 0 1 auto; max-width: 100%;
+    }
+    .pill .k, .pill .t { font-weight: 600; color: var(--muted); padding-right: 8px; border-right: 1px solid var(--line); }
+    .pill .t { color: inherit; font-weight: 700; font-variant-numeric: tabular-nums; }
+    .pill .c { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .pill.live { background: var(--live); color: var(--live-fg); border-color: #81d4fa; }
+    .pill.now { background: var(--now); color: var(--now-fg); border-color: #a5d6a7; }
+    .pill.gone { background: var(--gone); color: var(--gone-fg); border-color: #ffe0b2; }
+    .pill.empty { background: #f5f5f5; color: #9e9e9e; border-color: #e0e0e0; }
+    .pills { transition: opacity .2s ease; }
+    .pills.updating { opacity: .72; }
+    .pill { transition: background-color .2s ease, color .2s ease, box-shadow .2s ease; }
+    .pill.changed { box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary) 45%, transparent); }
+    .eta { transition: color .2s ease; }
+    .warn { color: var(--warn); font-size: .9rem; }
+    .muted { color: var(--muted); font-size: .9rem; }
+    .plat-note { margin: -4px 6px 12px; font-size: .8rem; }
+    .loading { text-align: center; color: var(--muted); padding: 28px 12px; font-style: italic; }
+    footer { text-align: center; color: var(--muted); font-size: .75rem; margin-top: 24px; }
+    .dir-tag { font-size: .75rem; color: var(--muted); }
+    .dir-title { display: flex; align-items: center; gap: 8px; font-size: 1.1rem; font-weight: 700; margin: 8px 0 4px; color: var(--primary); }
+    .arrow { color: var(--muted); }
+    #floatRefreshBtn {
+      display: none;
+      position: fixed;
+      bottom: max(16px, env(safe-area-inset-bottom));
+      right: max(16px, env(safe-area-inset-right));
+      z-index: 1100;
+      background: #0295FF;
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 6px 13.5px;
+      font-size: 0.7125rem;
+      font-weight: 700;
+      letter-spacing: 0.015em;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 3px 9px rgba(2, 149, 255, 0.22);
+      opacity: 0.5;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      transition: background-color 0.2s, transform 0.1s, opacity 0.2s, box-shadow 0.2s;
+    }
+    #floatRefreshBtn.is-opaque,
+    #floatRefreshBtn:active {
+      background-color: #007FE0;
+      opacity: 1;
+      box-shadow: 0 3px 9px rgba(2, 149, 255, 0.38);
+    }
+    #floatRefreshBtn:active { transform: scale(0.96); }
+    @media (hover: hover) and (pointer: fine) {
+      #floatRefreshBtn:hover,
+      #floatRefreshBtn:focus-visible {
+        background-color: #007FE0;
+        opacity: 1;
+        box-shadow: 0 3px 9px rgba(2, 149, 255, 0.38);
+      }
+    }
+    #floatRefreshBtn:disabled {
+      cursor: not-allowed;
+      transform: none;
+    }
+    #floatRefreshBtn:disabled:not(.is-opaque) {
+      opacity: 0.4;
+    }
+    @media (prefers-reduced-motion: reduce) {
+      * { transition: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <button type="button" id="homeBtn" class="back" style="display:block;text-align:left;padding:0;background:transparent;">
+        <p class="kicker">MTR Light Rail</p>
+        <h1>輕鐵實時到站 <span class="ver">(v2.2)</span></h1>
+        <p class="sub">以車站月台為準，亦可按路線查看沿線各站班次。資料來自港鐵開放數據。</p>
+      </button>
+      <button type="button" id="headerBackBtn" class="back" hidden aria-label="返回上一畫面">返回</button>
+    </header>
+
+    <div class="search">
+      <div class="search-field">
+        <svg class="search-ico" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>
+        <input id="q" type="text" placeholder="搜尋車站或路線（例：元朗、615、天水圍）" autocomplete="off" aria-label="搜尋輕鐵車站或路線">
+        <div id="suggest" class="suggest" hidden></div>
+      </div>
+      <button type="button" class="go" id="searchBtn">搜尋</button>
+    </div>
+
+    <div id="status" class="status" hidden>
+      <div>
+        <div class="label">正在檢視</div>
+        <div id="statusTitle" style="font-weight:700;"></div>
+        <div id="statusSub" class="meta"></div>
+      </div>
+      <div class="controls">
+        <div class="control-group">
+          <label for="slotCount">班次</label>
+          <select id="slotCount" class="slot-select" aria-label="顯示班次數">
+            <option value="1">1 班</option>
+            <option value="2" selected>2 班</option>
+            <option value="3">3 班</option>
+          </select>
+        </div>
+        <div class="control-group">
+          <label for="refreshEvery">自動更新</label>
+          <select id="refreshEvery" class="slot-select" aria-label="自動更新間隔">
+            <option value="10">10 秒</option>
+            <option value="12" selected>12 秒</option>
+            <option value="15">15 秒</option>
+          </select>
+        </div>
+        <span class="timer-wrap"><span class="timer" id="count">12</span><span class="timer-unit">秒</span></span>
+      </div>
+    </div>
+
+    <div id="board"></div>
+    <div id="home"></div>
+    <button type="button" id="backBtn" class="back-fab" hidden aria-label="返回上一畫面">返回</button>
+    <footer>班次資料由港鐵公司提供，僅供參考。實際以車站顯示屏為準。單檔 HTML 可另存使用。</footer>
+  </div>
+
+  <button type="button" id="floatRefreshBtn" aria-label="手動刷新到站時間" title="手動刷新到站時間">刷新[12]</button>
+
+<script>
+(function () {
+  const DATA = {"STOPS":[{"id":1,"nameZh":"屯門碼頭","nameEn":"Tuen Mun Ferry Pier","code":"FEP","zone":"1區","interchangeTml":false,"aliases":["碼頭"]},{"id":10,"nameZh":"美樂","nameEn":"Melody Garden","code":"MEG","zone":"1區","interchangeTml":false,"aliases":[]},{"id":15,"nameZh":"蝴蝶","nameEn":"Butterfly","code":"BUT","zone":"1區","interchangeTml":false,"aliases":[]},{"id":20,"nameZh":"輕鐵車廠","nameEn":"Light Rail Depot","code":"LRD","zone":"1區","interchangeTml":false,"aliases":[]},{"id":30,"nameZh":"龍門","nameEn":"Lung Mun","code":"LUM","zone":"1區","interchangeTml":false,"aliases":[]},{"id":40,"nameZh":"青山村","nameEn":"Tsing Shan Tsuen","code":"TSS","zone":"2區","interchangeTml":false,"aliases":[]},{"id":50,"nameZh":"青雲","nameEn":"Tsing Wun","code":"TWN","zone":"2區","interchangeTml":false,"aliases":[]},{"id":60,"nameZh":"建安","nameEn":"Kin On","code":"KIO","zone":"2區","interchangeTml":false,"aliases":[]},{"id":70,"nameZh":"河田","nameEn":"Ho Tin","code":"HOT","zone":"2區","interchangeTml":false,"aliases":[]},{"id":75,"nameZh":"蔡意橋","nameEn":"Choy Yee Bridge","code":"CYB","zone":"2區","interchangeTml":false,"aliases":[]},{"id":80,"nameZh":"澤豐","nameEn":"Affluence","code":"AFF","zone":"2區","interchangeTml":false,"aliases":[]},{"id":90,"nameZh":"屯門醫院","nameEn":"Tuen Mun Hospital","code":"TMH","zone":"3區","interchangeTml":false,"aliases":[]},{"id":100,"nameZh":"兆康","nameEn":"Siu Hong","code":"SHL","zone":"3區","interchangeTml":true,"aliases":["兆康站"]},{"id":110,"nameZh":"麒麟","nameEn":"Kei Lun","code":"KEL","zone":"3區","interchangeTml":false,"aliases":[]},{"id":120,"nameZh":"青松","nameEn":"Ching Chung","code":"CHC","zone":"3區","interchangeTml":false,"aliases":[]},{"id":130,"nameZh":"建生","nameEn":"Kin Sang","code":"KIS","zone":"3區","interchangeTml":false,"aliases":[]},{"id":140,"nameZh":"田景","nameEn":"Tin King","code":"TNK","zone":"3區","interchangeTml":false,"aliases":[]},{"id":150,"nameZh":"良景","nameEn":"Leung King","code":"LEK","zone":"3區","interchangeTml":false,"aliases":[]},{"id":160,"nameZh":"新圍","nameEn":"San Wai","code":"SAW","zone":"3區","interchangeTml":false,"aliases":[]},{"id":170,"nameZh":"石排","nameEn":"Shek Pai","code":"SHP","zone":"2區","interchangeTml":false,"aliases":[]},{"id":180,"nameZh":"山景(北)","nameEn":"Shan King (North)","code":"SKN","zone":"2區","interchangeTml":false,"aliases":["山景北","山景"]},{"id":190,"nameZh":"山景(南)","nameEn":"Shan King (South)","code":"SKS","zone":"2區","interchangeTml":false,"aliases":["山景南","山景"]},{"id":200,"nameZh":"鳴琴","nameEn":"Ming Kum","code":"MIK","zone":"2區","interchangeTml":false,"aliases":[]},{"id":212,"nameZh":"大興(北)","nameEn":"Tai Hing (North)","code":"THN","zone":"2區","interchangeTml":false,"aliases":["大興北","大興"]},{"id":220,"nameZh":"大興(南)","nameEn":"Tai Hing (South)","code":"THS","zone":"2區","interchangeTml":false,"aliases":["大興南","大興"]},{"id":230,"nameZh":"銀圍","nameEn":"Ngan Wai","code":"NGW","zone":"2區","interchangeTml":false,"aliases":[]},{"id":240,"nameZh":"兆禧","nameEn":"Siu Hei","code":"SHE","zone":"1區","interchangeTml":false,"aliases":[]},{"id":250,"nameZh":"海皇路","nameEn":"Hoi Wong Road","code":"TSP","zone":"1區","interchangeTml":false,"aliases":["屯門泳池","泳池","Tuen Mun Swimming Pool"]},{"id":260,"nameZh":"豐景園","nameEn":"Goodview Garden","code":"GOG","zone":"1區","interchangeTml":false,"aliases":[]},{"id":265,"nameZh":"兆麟","nameEn":"Siu Lun","code":"SIL","zone":"1區","interchangeTml":false,"aliases":[]},{"id":270,"nameZh":"安定","nameEn":"On Ting","code":"ONT","zone":"2區","interchangeTml":false,"aliases":[]},{"id":275,"nameZh":"友愛","nameEn":"Yau Oi","code":"YAO","zone":"2區","interchangeTml":false,"aliases":[]},{"id":280,"nameZh":"市中心","nameEn":"Town Centre","code":"TOC","zone":"2區","interchangeTml":false,"aliases":["屯門市中心","市中"]},{"id":295,"nameZh":"屯門","nameEn":"Tuen Mun","code":"TML","zone":"2區","interchangeTml":true,"aliases":["屯門站"]},{"id":300,"nameZh":"杯渡","nameEn":"Pui To","code":"PUT","zone":"2區","interchangeTml":false,"aliases":[]},{"id":310,"nameZh":"何福堂","nameEn":"Hoh Fuk Tong","code":"HFT","zone":"2區","interchangeTml":false,"aliases":[]},{"id":320,"nameZh":"新墟","nameEn":"San Hui","code":"SAH","zone":"2區","interchangeTml":false,"aliases":[]},{"id":330,"nameZh":"景峰","nameEn":"Prime View","code":"PRV","zone":"2區","interchangeTml":false,"aliases":[]},{"id":340,"nameZh":"鳳地","nameEn":"Fung Tei","code":"FUT","zone":"3區","interchangeTml":false,"aliases":[]},{"id":350,"nameZh":"藍地","nameEn":"Lam Tei","code":"LTE","zone":"3區","interchangeTml":false,"aliases":[]},{"id":360,"nameZh":"泥圍","nameEn":"Nai Wai","code":"NAW","zone":"3區","interchangeTml":false,"aliases":[]},{"id":370,"nameZh":"鍾屋村","nameEn":"Chung Uk Tsuen","code":"CUT","zone":"3區","interchangeTml":false,"aliases":[]},{"id":380,"nameZh":"洪水橋","nameEn":"Hung Shui Kiu","code":"HSK","zone":"4區","interchangeTml":false,"aliases":[]},{"id":390,"nameZh":"塘坊村","nameEn":"Tong Fong Tsuen","code":"TOF","zone":"4區","interchangeTml":false,"aliases":[]},{"id":400,"nameZh":"屏山","nameEn":"Ping Shan","code":"PIS","zone":"4區","interchangeTml":false,"aliases":[]},{"id":425,"nameZh":"坑尾村","nameEn":"Hang Mei Tsuen","code":"HMT","zone":"4區","interchangeTml":false,"aliases":[]},{"id":430,"nameZh":"天水圍","nameEn":"Tin Shui Wai","code":"TSL","zone":"4區","interchangeTml":true,"aliases":["天水圍站"]},{"id":435,"nameZh":"天慈","nameEn":"Tin Tsz","code":"TIT","zone":"4區","interchangeTml":false,"aliases":[]},{"id":445,"nameZh":"天耀","nameEn":"Tin Yiu","code":"TIY","zone":"4區","interchangeTml":false,"aliases":[]},{"id":448,"nameZh":"樂湖","nameEn":"Locwood","code":"LOC","zone":"4區","interchangeTml":false,"aliases":[]},{"id":450,"nameZh":"天湖","nameEn":"Tin Wu","code":"TWU","zone":"4區","interchangeTml":false,"aliases":[]},{"id":455,"nameZh":"銀座","nameEn":"Ginza","code":"GIN","zone":"4區","interchangeTml":false,"aliases":[]},{"id":460,"nameZh":"天瑞","nameEn":"Tin Shui","code":"TSU","zone":"4區","interchangeTml":false,"aliases":[]},{"id":468,"nameZh":"頌富","nameEn":"Chung Fu","code":"CHF","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":480,"nameZh":"天富","nameEn":"Tin Fu","code":"TFU","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":490,"nameZh":"翠湖","nameEn":"Chestwood","code":"CHE","zone":"4區","interchangeTml":false,"aliases":[]},{"id":500,"nameZh":"天榮","nameEn":"Tin Wing","code":"TWI","zone":"4區","interchangeTml":false,"aliases":[]},{"id":510,"nameZh":"天悅","nameEn":"Tin Yuet","code":"TYU","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":520,"nameZh":"天秀","nameEn":"Tin Sau","code":"TSA","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":530,"nameZh":"濕地公園","nameEn":"Wetland Park","code":"WEP","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":540,"nameZh":"天恒","nameEn":"Tin Heng","code":"THE","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":550,"nameZh":"天逸","nameEn":"Tin Yat","code":"TYA","zone":"5A區","interchangeTml":false,"aliases":[]},{"id":560,"nameZh":"水邊圍","nameEn":"Shui Pin Wai","code":"SPW","zone":"5區","interchangeTml":false,"aliases":[]},{"id":570,"nameZh":"豐年路","nameEn":"Fung Nin Road","code":"FNR","zone":"5區","interchangeTml":false,"aliases":[]},{"id":580,"nameZh":"康樂路","nameEn":"Hong Lok Road","code":"HLR","zone":"5區","interchangeTml":false,"aliases":[]},{"id":590,"nameZh":"大棠路","nameEn":"Tai Tong Road","code":"TTR","zone":"5區","interchangeTml":false,"aliases":[]},{"id":600,"nameZh":"元朗","nameEn":"Yuen Long","code":"YLL","zone":"5區","interchangeTml":true,"aliases":["元朗站"]},{"id":920,"nameZh":"三聖","nameEn":"Sam Shing","code":"SAS","zone":"1區","interchangeTml":false,"aliases":[]}],"ROUTES":[{"code":"505","nameZh":"三聖 ↔ 兆康","circular":false,"directions":[{"dir":1,"origZh":"三聖","destZh":"兆康","destEn":"Siu Hong","stops":[{"seq":1,"stopId":920},{"seq":2,"stopId":265},{"seq":3,"stopId":270},{"seq":4,"stopId":280},{"seq":5,"stopId":295},{"seq":6,"stopId":60},{"seq":7,"stopId":190},{"seq":8,"stopId":180},{"seq":9,"stopId":170},{"seq":10,"stopId":160},{"seq":11,"stopId":150},{"seq":12,"stopId":140},{"seq":13,"stopId":130},{"seq":14,"stopId":120},{"seq":15,"stopId":110},{"seq":16,"stopId":100}]},{"dir":2,"origZh":"兆康","destZh":"三聖","destEn":"Sam Shing","stops":[{"seq":1,"stopId":100},{"seq":2,"stopId":120},{"seq":3,"stopId":130},{"seq":4,"stopId":140},{"seq":5,"stopId":150},{"seq":6,"stopId":160},{"seq":7,"stopId":170},{"seq":8,"stopId":200},{"seq":9,"stopId":60},{"seq":10,"stopId":295},{"seq":11,"stopId":280},{"seq":12,"stopId":270},{"seq":13,"stopId":265},{"seq":14,"stopId":920}]}]},{"code":"507","nameZh":"屯門碼頭 ↔ 田景","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"田景","destEn":"Tin King","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":240},{"seq":3,"stopId":250},{"seq":4,"stopId":260},{"seq":5,"stopId":265},{"seq":6,"stopId":270},{"seq":7,"stopId":280},{"seq":8,"stopId":295},{"seq":9,"stopId":70},{"seq":10,"stopId":75},{"seq":11,"stopId":230},{"seq":12,"stopId":220},{"seq":13,"stopId":212},{"seq":14,"stopId":160},{"seq":15,"stopId":150},{"seq":16,"stopId":140}]},{"dir":2,"origZh":"田景","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":140},{"seq":2,"stopId":150},{"seq":3,"stopId":160},{"seq":4,"stopId":212},{"seq":5,"stopId":220},{"seq":6,"stopId":230},{"seq":7,"stopId":75},{"seq":8,"stopId":70},{"seq":9,"stopId":295},{"seq":10,"stopId":280},{"seq":11,"stopId":270},{"seq":12,"stopId":265},{"seq":13,"stopId":260},{"seq":14,"stopId":250},{"seq":15,"stopId":240},{"seq":16,"stopId":1}]}]},{"code":"610","nameZh":"屯門碼頭 ↔ 元朗","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"元朗","destEn":"Yuen Long","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":10},{"seq":3,"stopId":15},{"seq":4,"stopId":20},{"seq":5,"stopId":30},{"seq":6,"stopId":40},{"seq":7,"stopId":50},{"seq":8,"stopId":200},{"seq":9,"stopId":170},{"seq":10,"stopId":212},{"seq":11,"stopId":220},{"seq":12,"stopId":230},{"seq":13,"stopId":80},{"seq":14,"stopId":90},{"seq":15,"stopId":100},{"seq":16,"stopId":350},{"seq":17,"stopId":360},{"seq":18,"stopId":370},{"seq":19,"stopId":380},{"seq":20,"stopId":390},{"seq":21,"stopId":400},{"seq":22,"stopId":560},{"seq":23,"stopId":570},{"seq":24,"stopId":580},{"seq":25,"stopId":590},{"seq":26,"stopId":600}]},{"dir":2,"origZh":"元朗","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":600},{"seq":2,"stopId":590},{"seq":3,"stopId":580},{"seq":4,"stopId":570},{"seq":5,"stopId":560},{"seq":6,"stopId":400},{"seq":7,"stopId":390},{"seq":8,"stopId":380},{"seq":9,"stopId":370},{"seq":10,"stopId":360},{"seq":11,"stopId":350},{"seq":12,"stopId":100},{"seq":13,"stopId":90},{"seq":14,"stopId":80},{"seq":15,"stopId":230},{"seq":16,"stopId":220},{"seq":17,"stopId":212},{"seq":18,"stopId":170},{"seq":19,"stopId":200},{"seq":20,"stopId":50},{"seq":21,"stopId":40},{"seq":22,"stopId":30},{"seq":23,"stopId":20},{"seq":24,"stopId":15},{"seq":25,"stopId":10},{"seq":26,"stopId":1}]}]},{"code":"614","nameZh":"屯門碼頭 ↔ 元朗","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"元朗","destEn":"Yuen Long","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":240},{"seq":3,"stopId":250},{"seq":4,"stopId":260},{"seq":5,"stopId":265},{"seq":6,"stopId":270},{"seq":7,"stopId":280},{"seq":8,"stopId":300},{"seq":9,"stopId":310},{"seq":10,"stopId":320},{"seq":11,"stopId":330},{"seq":12,"stopId":340},{"seq":13,"stopId":100},{"seq":14,"stopId":350},{"seq":15,"stopId":360},{"seq":16,"stopId":370},{"seq":17,"stopId":380},{"seq":18,"stopId":390},{"seq":19,"stopId":400},{"seq":20,"stopId":560},{"seq":21,"stopId":570},{"seq":22,"stopId":580},{"seq":23,"stopId":590},{"seq":24,"stopId":600}]},{"dir":2,"origZh":"元朗","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":600},{"seq":2,"stopId":590},{"seq":3,"stopId":580},{"seq":4,"stopId":570},{"seq":5,"stopId":560},{"seq":6,"stopId":400},{"seq":7,"stopId":390},{"seq":8,"stopId":380},{"seq":9,"stopId":370},{"seq":10,"stopId":360},{"seq":11,"stopId":350},{"seq":12,"stopId":100},{"seq":13,"stopId":340},{"seq":14,"stopId":330},{"seq":15,"stopId":320},{"seq":16,"stopId":310},{"seq":17,"stopId":300},{"seq":18,"stopId":280},{"seq":19,"stopId":270},{"seq":20,"stopId":265},{"seq":21,"stopId":260},{"seq":22,"stopId":250},{"seq":23,"stopId":240},{"seq":24,"stopId":1}]}]},{"code":"614P","nameZh":"屯門碼頭 ↔ 兆康","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"兆康","destEn":"Siu Hong","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":240},{"seq":3,"stopId":250},{"seq":4,"stopId":260},{"seq":5,"stopId":265},{"seq":6,"stopId":270},{"seq":7,"stopId":280},{"seq":8,"stopId":300},{"seq":9,"stopId":310},{"seq":10,"stopId":320},{"seq":11,"stopId":330},{"seq":12,"stopId":340},{"seq":13,"stopId":100}]},{"dir":2,"origZh":"兆康","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":100},{"seq":2,"stopId":340},{"seq":3,"stopId":330},{"seq":4,"stopId":320},{"seq":5,"stopId":310},{"seq":6,"stopId":300},{"seq":7,"stopId":280},{"seq":8,"stopId":270},{"seq":9,"stopId":265},{"seq":10,"stopId":260},{"seq":11,"stopId":250},{"seq":12,"stopId":240},{"seq":13,"stopId":1}]}]},{"code":"615","nameZh":"屯門碼頭 ↔ 元朗","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"元朗","destEn":"Yuen Long","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":10},{"seq":3,"stopId":15},{"seq":4,"stopId":20},{"seq":5,"stopId":30},{"seq":6,"stopId":40},{"seq":7,"stopId":50},{"seq":8,"stopId":200},{"seq":9,"stopId":170},{"seq":10,"stopId":160},{"seq":11,"stopId":150},{"seq":12,"stopId":140},{"seq":13,"stopId":130},{"seq":14,"stopId":120},{"seq":15,"stopId":100},{"seq":16,"stopId":350},{"seq":17,"stopId":360},{"seq":18,"stopId":370},{"seq":19,"stopId":380},{"seq":20,"stopId":390},{"seq":21,"stopId":400},{"seq":22,"stopId":560},{"seq":23,"stopId":570},{"seq":24,"stopId":580},{"seq":25,"stopId":590},{"seq":26,"stopId":600}]},{"dir":2,"origZh":"元朗","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":600},{"seq":2,"stopId":590},{"seq":3,"stopId":580},{"seq":4,"stopId":570},{"seq":5,"stopId":560},{"seq":6,"stopId":400},{"seq":7,"stopId":390},{"seq":8,"stopId":380},{"seq":9,"stopId":370},{"seq":10,"stopId":360},{"seq":11,"stopId":350},{"seq":12,"stopId":100},{"seq":13,"stopId":120},{"seq":14,"stopId":130},{"seq":15,"stopId":140},{"seq":16,"stopId":150},{"seq":17,"stopId":160},{"seq":18,"stopId":170},{"seq":19,"stopId":200},{"seq":20,"stopId":50},{"seq":21,"stopId":40},{"seq":22,"stopId":30},{"seq":23,"stopId":20},{"seq":24,"stopId":15},{"seq":25,"stopId":10},{"seq":26,"stopId":1}]}]},{"code":"615P","nameZh":"屯門碼頭 ↔ 兆康","circular":false,"directions":[{"dir":1,"origZh":"屯門碼頭","destZh":"兆康","destEn":"Siu Hong","stops":[{"seq":1,"stopId":1},{"seq":2,"stopId":10},{"seq":3,"stopId":15},{"seq":4,"stopId":20},{"seq":5,"stopId":30},{"seq":6,"stopId":40},{"seq":7,"stopId":50},{"seq":8,"stopId":200},{"seq":9,"stopId":170},{"seq":10,"stopId":160},{"seq":11,"stopId":150},{"seq":12,"stopId":140},{"seq":13,"stopId":130},{"seq":14,"stopId":120},{"seq":15,"stopId":110},{"seq":16,"stopId":100}]},{"dir":2,"origZh":"兆康","destZh":"屯門碼頭","destEn":"Tuen Mun Ferry Pier","stops":[{"seq":1,"stopId":100},{"seq":2,"stopId":110},{"seq":3,"stopId":120},{"seq":4,"stopId":130},{"seq":5,"stopId":140},{"seq":6,"stopId":150},{"seq":7,"stopId":160},{"seq":8,"stopId":170},{"seq":9,"stopId":200},{"seq":10,"stopId":50},{"seq":11,"stopId":40},{"seq":12,"stopId":30},{"seq":13,"stopId":20},{"seq":14,"stopId":15},{"seq":15,"stopId":10},{"seq":16,"stopId":1}]}]},{"code":"705","nameZh":"天水圍循環（逆時針經天慈）","circular":true,"directions":[{"dir":1,"origZh":"天水圍","destZh":"天水圍循環綫","destEn":"Tin Shui Wai Circular","stops":[{"seq":1,"stopId":430},{"seq":2,"stopId":435},{"seq":3,"stopId":450},{"seq":4,"stopId":455},{"seq":5,"stopId":500},{"seq":6,"stopId":510},{"seq":7,"stopId":520},{"seq":8,"stopId":530},{"seq":9,"stopId":540},{"seq":10,"stopId":550},{"seq":11,"stopId":480},{"seq":12,"stopId":468},{"seq":13,"stopId":460},{"seq":14,"stopId":448},{"seq":15,"stopId":445}]}]},{"code":"706","nameZh":"天水圍循環（順時針經天耀）","circular":true,"directions":[{"dir":1,"origZh":"天水圍","destZh":"天水圍循環綫","destEn":"Tin Shui Wai Circular","stops":[{"seq":1,"stopId":430},{"seq":2,"stopId":445},{"seq":3,"stopId":448},{"seq":4,"stopId":460},{"seq":5,"stopId":468},{"seq":6,"stopId":480},{"seq":7,"stopId":550},{"seq":8,"stopId":540},{"seq":9,"stopId":530},{"seq":10,"stopId":520},{"seq":11,"stopId":510},{"seq":12,"stopId":500},{"seq":13,"stopId":455},{"seq":14,"stopId":450},{"seq":15,"stopId":435}]}]},{"code":"751","nameZh":"友愛 ↔ 天逸","circular":false,"directions":[{"dir":1,"origZh":"友愛","destZh":"天逸","destEn":"Tin Yat","stops":[{"seq":1,"stopId":275},{"seq":2,"stopId":270},{"seq":3,"stopId":280},{"seq":4,"stopId":295},{"seq":5,"stopId":70},{"seq":6,"stopId":75},{"seq":7,"stopId":80},{"seq":8,"stopId":90},{"seq":9,"stopId":100},{"seq":10,"stopId":350},{"seq":11,"stopId":360},{"seq":12,"stopId":370},{"seq":13,"stopId":380},{"seq":14,"stopId":425},{"seq":15,"stopId":430},{"seq":16,"stopId":435},{"seq":17,"stopId":450},{"seq":18,"stopId":455},{"seq":19,"stopId":500},{"seq":20,"stopId":490},{"seq":21,"stopId":468},{"seq":22,"stopId":480},{"seq":23,"stopId":550}]},{"dir":2,"origZh":"天逸","destZh":"友愛","destEn":"Yau Oi","stops":[{"seq":1,"stopId":550},{"seq":2,"stopId":480},{"seq":3,"stopId":468},{"seq":4,"stopId":490},{"seq":5,"stopId":500},{"seq":6,"stopId":455},{"seq":7,"stopId":450},{"seq":8,"stopId":435},{"seq":9,"stopId":430},{"seq":10,"stopId":425},{"seq":11,"stopId":380},{"seq":12,"stopId":370},{"seq":13,"stopId":360},{"seq":14,"stopId":350},{"seq":15,"stopId":100},{"seq":16,"stopId":90},{"seq":17,"stopId":80},{"seq":18,"stopId":75},{"seq":19,"stopId":70},{"seq":20,"stopId":295},{"seq":21,"stopId":280},{"seq":22,"stopId":275}]}]},{"code":"761P","nameZh":"天逸 ↔ 元朗","circular":false,"directions":[{"dir":1,"origZh":"天逸","destZh":"元朗","destEn":"Yuen Long","stops":[{"seq":1,"stopId":550},{"seq":2,"stopId":480},{"seq":3,"stopId":468},{"seq":4,"stopId":460},{"seq":5,"stopId":448},{"seq":6,"stopId":445},{"seq":7,"stopId":425},{"seq":8,"stopId":390},{"seq":9,"stopId":400},{"seq":10,"stopId":560},{"seq":11,"stopId":570},{"seq":12,"stopId":580},{"seq":13,"stopId":590},{"seq":14,"stopId":600}]},{"dir":2,"origZh":"元朗","destZh":"天逸","destEn":"Tin Yat","stops":[{"seq":1,"stopId":600},{"seq":2,"stopId":590},{"seq":3,"stopId":580},{"seq":4,"stopId":570},{"seq":5,"stopId":560},{"seq":6,"stopId":400},{"seq":7,"stopId":390},{"seq":8,"stopId":425},{"seq":9,"stopId":445},{"seq":10,"stopId":448},{"seq":11,"stopId":460},{"seq":12,"stopId":468},{"seq":13,"stopId":480},{"seq":14,"stopId":550}]}]}],"ZONE_ORDER":["1區","2區","3區","4區","5A區","5區"],"POPULAR_STOP_IDS":[600,430,295,100,1,280,550,500]};
+  const API = "https://rt.data.gov.hk/v1/transport/mtr/lrt/getSchedule";
+  const FETCH_MS = 8000;
+  const STOP_BY_ID = Object.fromEntries(DATA.STOPS.map((s) => [s.id, s]));
+  const ROUTE_BY_CODE = Object.fromEntries(DATA.ROUTES.map((r) => [r.code, r]));
+  const FAV_KEY = "lrt-eta-favorites";
+  const REFRESH_KEY = "lrt-eta-refresh";
+  const SLOT_KEY = "lrt-eta-slots";
+  const SLOT_LABELS = ["下一班", "第二班", "第三班"];
+  const DEST_ALIASES = {
+    "三聖": "三聖",
+    "兆康": "兆康",
+    "兆康站": "兆康",
+    "屯門碼頭": "屯門碼頭",
+    "碼頭": "屯門碼頭",
+    "田景": "田景",
+    "元朗": "元朗",
+    "元朗站": "元朗",
+    "友愛": "友愛",
+    "天逸": "天逸",
+    "天水圍": "天水圍",
+    "天水圍站": "天水圍",
+    "天水圍循環綫": "天水圍循環綫",
+    "天水圍循環": "天水圍循環綫",
+    "循環綫": "天水圍循環綫"
+  };
+
+  const $ = (id) => document.getElementById(id);
+  const qEl = $("q");
+  const suggestEl = $("suggest");
+  const boardEl = $("board");
+  const homeEl = $("home");
+  const statusEl = $("status");
+  const backBtn = $("backBtn");
+  const headerBackBtn = $("headerBackBtn");
+
+  let selection = null;
+  let slotCount = 2;
+  let refreshEvery = 12;
+  let seconds = 12;
+  let timer = null;
+  let activeIdx = 0;
+  let lastHits = [];
+  let nonce = 0;
+  let lastStation = null;
+  let lastRoute = null;
+  let inFlight = false;
+  let navStack = [];
+  let navigatingBack = false;
+  let isManualRefreshing = false;
+  let floatOpaqueTimer = null;
+  let liveAbort = null;
+
+  try {
+    const r = JSON.parse(localStorage.getItem(REFRESH_KEY) || "12");
+    if (r === 10 || r === 12 || r === 15) refreshEvery = r;
+  } catch (e) {}
+  try {
+    const s = JSON.parse(localStorage.getItem(SLOT_KEY) || "2");
+    if (s === 1 || s === 2 || s === 3) slotCount = s;
+  } catch (e) {}
+  seconds = refreshEvery;
+  $("refreshEvery").value = String(refreshEvery);
+  $("slotCount").value = String(slotCount);
+  showCount();
+
+  function pad2(n) { return String(n).padStart(2, "0"); }
+  function showCount() {
+    const formatted = pad2(seconds);
+    $("count").textContent = formatted;
+    const btn = $("floatRefreshBtn");
+    if (btn && !btn.classList.contains("is-opaque")) {
+      btn.textContent = "刷新[" + formatted + "]";
+    }
+  }
+  function setFloatRefreshVisible(on) {
+    const btn = $("floatRefreshBtn");
+    if (!btn) return;
+    btn.style.display = on ? "inline-flex" : "none";
+    if (!on) {
+      isManualRefreshing = false;
+      btn.disabled = false;
+      btn.classList.remove("is-opaque");
+      if (floatOpaqueTimer) {
+        clearTimeout(floatOpaqueTimer);
+        floatOpaqueTimer = null;
+      }
+    }
+  }
+  function pageVisible() {
+    return document.visibilityState !== "hidden";
+  }
+  function abortLive() {
+    if (!liveAbort) return;
+    liveAbort.abort();
+    liveAbort = null;
+  }
+  function beginLive() {
+    abortLive();
+    liveAbort = new AbortController();
+    return liveAbort.signal;
+  }
+  function isAbortError(e) {
+    return !!(e && e.name === "AbortError");
+  }
+  function stopClock() {
+    if (timer) {
+      clearInterval(timer);
+      timer = null;
+    }
+  }
+  function flashFloat(text) {
+    const btn = $("floatRefreshBtn");
+    if (!btn || btn.style.display === "none") return;
+    btn.classList.add("is-opaque");
+    btn.textContent = text;
+    if (floatOpaqueTimer) clearTimeout(floatOpaqueTimer);
+    floatOpaqueTimer = setTimeout(() => {
+      btn.classList.remove("is-opaque");
+      btn.blur();
+      floatOpaqueTimer = null;
+      showCount();
+    }, 2000);
+  }
+  async function manualRefresh() {
+    if (!selection || isManualRefreshing || !pageVisible()) return;
+    const btn = $("floatRefreshBtn");
+    isManualRefreshing = true;
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add("is-opaque");
+      btn.textContent = "更新中";
+    }
+    startClock();
+    let result = null;
+    try {
+      result = selection.kind === "station"
+        ? await selectStation(selection.id, true)
+        : await selectRoute(selection.code, true);
+    } catch (e) {
+      result = false;
+    } finally {
+      isManualRefreshing = false;
+      if (btn) btn.disabled = false;
+    }
+    if (!selection || (btn && btn.style.display === "none")) return;
+    if (result === true) flashFloat("已刷新");
+    else if (result === false) flashFloat("更新失敗");
+    else {
+      if (btn) btn.classList.remove("is-opaque");
+      showCount();
+    }
+  }
+  function esc(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (c) => {
+      if (c === "&") return "&" + "amp;";
+      if (c === "<") return "&" + "lt;";
+      if (c === ">") return "&" + "gt;";
+      if (c === '"') return "&" + "quot;";
+      return "&#39;";
+    });
+  }
+  function favorites() {
+    try { return JSON.parse(localStorage.getItem(FAV_KEY) || "[]"); } catch (e) { return []; }
+  }
+  function saveFav(ids) {
+    try { localStorage.setItem(FAV_KEY, JSON.stringify(ids.slice(0, 16))); } catch (e) {}
+  }
+  function badge(code) {
+    const cls = "r" + String(code).replace(/[^0-9A-Za-z]/g, "");
+    const known = ["r505","r507","r610","r614","r614P","r615","r615P","r705","r706","r751","r761P"];
+    return '<span class="badge ' + (known.indexOf(cls) >= 0 ? cls : "fallback") + '">' + esc(code) + "</span>";
+  }
+  function norm(s) { return String(s || "").trim().toLowerCase().replace(/\s+/g, ""); }
+  function scoreText(q, cands) {
+    const nq = norm(q);
+    if (!nq) return null;
+    let best = null;
+    for (const raw of cands) {
+      const t = norm(raw);
+      if (!t) continue;
+      if (t === nq) best = Math.min(best ?? 0, 0);
+      else if (t.startsWith(nq)) best = Math.min(best ?? 20, 20);
+      else if (t.includes(nq)) best = Math.min(best ?? 40, 40);
+    }
+    return best;
+  }
+  function searchLrt(query) {
+    const q = query.trim();
+    if (!q) return [];
+    const hits = [];
+    for (const route of DATA.ROUTES) {
+      const score = scoreText(q, [route.code, route.nameZh, route.code.replace(/p$/i, "")]);
+      if (score == null) continue;
+      hits.push({ kind: "route", route, score: norm(route.code) === norm(q) ? score - 10 : score });
+    }
+    for (const stop of DATA.STOPS) {
+      const score = scoreText(q, [stop.nameZh, stop.nameEn, stop.code, ...(stop.aliases || []), stop.nameZh.replace(/[()（）\s]/g, "")]);
+      if (score == null) continue;
+      hits.push({ kind: "station", stop, score });
+    }
+    hits.sort((a, b) => {
+      if (a.score !== b.score) return a.score - b.score;
+      if (a.kind !== b.kind) return a.kind === "route" ? -1 : 1;
+      if (a.kind === "route") return a.route.code.localeCompare(b.route.code, "en", { numeric: true });
+      return a.stop.nameZh.localeCompare(b.stop.nameZh, "zh-Hant");
+    });
+    return hits.slice(0, 40);
+  }
+  function parseEta(train) {
+    const ch = String(train.time_ch || "").trim();
+    const en = String(train.time_en || "").trim();
+    const blob = ch + " " + en;
+    if (!ch && !en) return { kind: "empty", label: "沒有班次", sortKey: 999 };
+    if (ch === "-" || en === "-") return { kind: "now", label: "即將到站", sortKey: 0 };
+    if (/正在離開|departing/i.test(blob)) return { kind: "gone", label: "正在離開", sortKey: -1 };
+    if (/即將|arriving/i.test(blob)) return { kind: "now", label: "即將到站", sortKey: 0 };
+    const m = blob.match(/(\d+)/);
+    if (m) return { kind: "min", label: m[1] + " 分", sortKey: Number(m[1]) };
+    return { kind: "empty", label: ch || en, sortKey: 998 };
+  }
+  function carCount(t) {
+    const n = Number(t.train_length);
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  }
+  function carLabel(t) {
+    const n = carCount(t);
+    return n > 0 ? n + " 卡" : "卡數未提供";
+  }
+  function isSpecial(t) { return String(t.special) === "1" || Number(t.special) === 1; }
+  function destNorm(s) {
+    return String(s || "").replace(/\s+/g, "").replace(/線/g, "綫");
+  }
+  function destCanon(s) {
+    const n = destNorm(s);
+    if (!n) return "";
+    return DEST_ALIASES[n] || n;
+  }
+  function destMatches(trainDest, directionDest, circular) {
+    const a = destCanon(trainDest);
+    const b = destCanon(directionDest);
+    if (!a) return true;
+    if (circular) return a === b || a.indexOf("循環") >= 0;
+    return a === b;
+  }
+  async function fetchStation(id) {
+    const parent = liveAbort && liveAbort.signal;
+    const timeoutCtl = new AbortController();
+    const t = setTimeout(() => timeoutCtl.abort(), FETCH_MS);
+    const onParentAbort = () => timeoutCtl.abort();
+    if (parent) {
+      if (parent.aborted) {
+        clearTimeout(t);
+        const err = new Error("aborted");
+        err.name = "AbortError";
+        throw err;
+      }
+      parent.addEventListener("abort", onParentAbort, { once: true });
+    }
+    try {
+      const res = await fetch(API + "?station_id=" + id + "&with_special=1", {
+        cache: "no-store",
+        signal: timeoutCtl.signal
+      });
+      if (!res.ok) throw new Error("載入失敗（" + res.status + "）");
+      return await res.json();
+    } catch (e) {
+      if (e && e.name === "AbortError") {
+        if (parent && parent.aborted) {
+          const err = new Error("aborted");
+          err.name = "AbortError";
+          throw err;
+        }
+        const err = new Error("逾時");
+        err.name = "TimeoutError";
+        throw err;
+      }
+      throw e;
+    } finally {
+      clearTimeout(t);
+      if (parent) parent.removeEventListener("abort", onParentAbort);
+    }
+  }
+  function platformsOf(schedule) {
+    if (!schedule) return [];
+    return (schedule.platform_list || []).map((p) => {
+      const trains = (p.route_list || []).map((t) => Object.assign({}, t, { eta: parseEta(t) }))
+        .sort((a, b) => a.eta.sortKey - b.eta.sortKey);
+      return { id: p.platform_id, trains };
+    }).filter((p) => p.trains.length).sort((a, b) => a.id - b.id);
+  }
+  function filterRouteTrains(schedule, code, destZh, circular) {
+    const all = platformsOf(schedule).flatMap((p) => p.trains.map((t) => Object.assign({ platform: p.id }, t)));
+    const same = all.filter((t) => String(t.route_no).toUpperCase() === String(code).toUpperCase());
+    const matched = same.filter((t) => destMatches(t.dest_ch, destZh, circular));
+    const list = (matched.length ? matched : circular ? same : matched)
+      .sort((a, b) => a.eta.sortKey - b.eta.sortKey);
+    const seen = new Set();
+    return list.filter((t) => {
+      const key = [t.eta.label, t.dest_ch, t.train_length, t.platform].join("|");
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+  async function mapPool(items, limit, worker) {
+    const out = new Array(items.length);
+    let i = 0;
+    async function run() {
+      while (i < items.length) {
+        const idx = i++;
+        out[idx] = await worker(items[idx], idx);
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(limit, items.length) || 1 }, run));
+    return out;
+  }
+  function pillsInner(trains, emptyLabel) {
+    const slots = Array.from({ length: slotCount }, (_, i) => trains[i] || null);
+    return slots.map((t, i) => {
+      const lab = SLOT_LABELS[i] || ("第" + (i + 1) + "班");
+      if (!t) {
+        return '<div class="pill empty"><span class="k">' + lab + '</span><span class="c">' + (i === 0 ? esc(emptyLabel) : "—") + "</span></div>";
+      }
+      const cls = t.eta.kind === "now" ? "now" : t.eta.kind === "gone" ? "gone" : t.eta.kind === "min" ? "live" : "empty";
+      const cars = carCount(t) > 0 ? carCount(t) + "卡" : "—";
+      return '<div class="pill ' + cls + '"><span class="k">' + lab + '</span><span class="t">' + esc(t.eta.label) + '</span><span class="c">' + esc(cars) + "</span></div>";
+    }).join("");
+  }
+  function pills(trains, emptyLabel, key) {
+    return '<div class="pills" data-pills="' + esc(key || "") + '">' + pillsInner(trains, emptyLabel) + "</div>";
+  }
+  function patchPills(key, trains, emptyLabel) {
+    const el = boardEl.querySelector('[data-pills="' + key + '"]');
+    if (!el) return;
+    const next = pillsInner(trains, emptyLabel);
+    if (el.innerHTML === next) return;
+    el.innerHTML = next;
+    el.querySelectorAll(".pill").forEach((p) => {
+      p.classList.add("changed");
+      setTimeout(() => p.classList.remove("changed"), 600);
+    });
+  }
+  function setHash(kind, id) {
+    var next = "#/";
+    if (kind === "station") next = "#/station/" + id;
+    else if (kind === "route") next = "#/route/" + encodeURIComponent(id);
+    if (location.hash !== next) {
+      try { history.replaceState(null, "", next); } catch (e) { location.hash = next; }
+    }
+  }
+
+  function sameSel(a, b) {
+    if (!a || !b || a.kind !== b.kind) return false;
+    if (a.kind === "station") return a.id === b.id;
+    return a.code === b.code;
+  }
+  function rememberNav(next) {
+    if (navigatingBack || !selection || sameSel(selection, next)) return;
+    navStack.push({ kind: selection.kind, id: selection.id, code: selection.code });
+    if (navStack.length > 32) navStack.shift();
+  }
+  function setBackVisible(on) {
+    backBtn.hidden = !on;
+    headerBackBtn.hidden = !on;
+    document.body.classList.toggle("has-back", on);
+  }
+  function goBack() {
+    const prev = navStack.pop();
+    if (!prev) { goHome(); return; }
+    navigatingBack = true;
+    try {
+      if (prev.kind === "station") selectStation(prev.id, false);
+      else selectRoute(prev.code, false);
+    } finally {
+      navigatingBack = false;
+    }
+  }
+
+  function renderHome() {
+    statusEl.hidden = true;
+    setBackVisible(false);
+    boardEl.innerHTML = "";
+    const favs = favorites().map((id) => STOP_BY_ID[id]).filter(Boolean);
+    let html = "";
+    if (favs.length) {
+      html += '<div class="card"><h2>常用車站</h2><div class="chips">' +
+        favs.map((s) => '<button type="button" class="chip fav" data-st="' + s.id + '">' + esc(s.nameZh) + "</button>").join("") +
+        "</div></div>";
+    }
+    html += '<div class="card"><h2>路線</h2><p class="desc">選線後顯示沿線各站到站時間</p><div class="routes">' +
+      DATA.ROUTES.map((r) => {
+        const sub = r.circular ? "單向循環" : (r.directions[0].origZh + " / " + r.directions[0].destZh);
+        return '<button type="button" class="route-btn" data-rt="' + esc(r.code) + '">' + badge(r.code) +
+          '<span class="grow"><span style="display:block;font-weight:600;font-size:.9rem;">' + esc(r.nameZh) +
+          '</span><span class="meta">' + esc(sub) + "</span></span></button>";
+      }).join("") + "</div></div>";
+    html += '<div class="card"><h2>轉乘及總站</h2><p class="desc">一按即查月台班次</p><div class="chips">' +
+      DATA.POPULAR_STOP_IDS.map((id) => {
+        const s = STOP_BY_ID[id]; if (!s) return "";
+        return '<button type="button" class="chip" data-st="' + id + '">' + esc(s.nameZh) +
+          (s.interchangeTml ? '<span class="tml">屯馬</span>' : "") + "</button>";
+      }).join("") + "</div></div>";
+    for (const zone of DATA.ZONE_ORDER) {
+      const stops = DATA.STOPS.filter((s) => s.zone === zone);
+      html += '<div class="card"><h2>' + esc(zone) + '</h2><div class="chips">' +
+        stops.map((s) => '<button type="button" class="chip" data-st="' + s.id + '">' + esc(s.nameZh) + "</button>").join("") +
+        "</div></div>";
+    }
+    homeEl.innerHTML = html;
+  }
+
+  function showSuggest(hits) {
+    lastHits = hits;
+    if (!qEl.value.trim()) { suggestEl.hidden = true; return; }
+    if (!hits.length) {
+      suggestEl.hidden = false;
+      suggestEl.innerHTML = '<p class="muted" style="padding:16px;text-align:center;margin:0;">沒有符合的車站或路線</p>';
+      return;
+    }
+    suggestEl.hidden = false;
+    suggestEl.innerHTML = hits.map((h, i) => {
+      if (h.kind === "station") {
+        return '<button type="button" class="' + (i === activeIdx ? "active" : "") + '" data-i="' + i + '">' +
+          '<span class="grow"><strong>' + esc(h.stop.nameZh) + '</strong><div class="meta">' +
+          esc(h.stop.nameEn) + " · " + esc(h.stop.zone) + '</div></span><span class="meta">' + esc(h.stop.code) + "</span></button>";
+      }
+      return '<button type="button" class="' + (i === activeIdx ? "active" : "") + '" data-i="' + i + '">' +
+        badge(h.route.code) + '<span class="grow meta">' + esc(h.route.nameZh) + "</span></button>";
+    }).join("");
+  }
+
+  function pickHit(h) {
+    suggestEl.hidden = true;
+    if (h.kind === "station") selectStation(h.stop.id);
+    else selectRoute(h.route.code);
+  }
+
+  function startClock() {
+    if (!pageVisible() || !selection) {
+      stopClock();
+      return;
+    }
+    seconds = refreshEvery;
+    showCount();
+    if (timer) clearInterval(timer);
+    timer = setInterval(() => {
+      if (!pageVisible()) {
+        stopClock();
+        return;
+      }
+      seconds -= 1;
+      if (seconds <= 0) {
+        seconds = refreshEvery;
+        reload();
+      }
+      showCount();
+    }, 1000);
+  }
+
+  function setStatus(title, sub) {
+    statusEl.hidden = false;
+    setBackVisible(true);
+    setFloatRefreshVisible(true);
+    $("statusTitle").innerHTML = title;
+    $("statusSub").textContent = sub || "";
+    startClock();
+  }
+
+  function bindFav(id, schedule, error) {
+    const favBtn = $("favBtn");
+    if (favBtn) favBtn.onclick = () => {
+      const cur = favorites();
+      const next = cur.indexOf(id) >= 0 ? cur.filter((x) => x !== id) : [id].concat(cur);
+      saveFav(next);
+      renderStation(id, schedule, error);
+    };
+  }
+
+  async function selectStation(id, silent) {
+    const switching = !silent;
+    const next = { kind: "station", id };
+    if (switching) rememberNav(next);
+    selection = next;
+    setHash("station", id);
+    homeEl.innerHTML = "";
+    const stop = STOP_BY_ID[id];
+    if (switching) {
+      setStatus('<span class="zh-name">' + esc(stop ? stop.nameZh : "車站 " + id) + "</span>", stop ? stop.nameEn : "");
+      if (!boardEl.querySelector("[data-station-board]")) {
+        boardEl.innerHTML = '<div class="card loading">正在載入月台班次…</div>';
+      }
+    }
+    const my = ++nonce;
+    beginLive();
+    inFlight = true;
+    try {
+      const schedule = await fetchStation(id);
+      if (my !== nonce) return null;
+      lastStation = { id, schedule, error: null };
+      if (silent && boardEl.querySelector("[data-station-board]")) patchStation(id, schedule, null);
+      else renderStation(id, schedule, null);
+      if (my === nonce) {
+        seconds = refreshEvery;
+        showCount();
+      }
+      return true;
+    } catch (e) {
+      if (isAbortError(e) || my !== nonce) return null;
+      lastStation = { id, schedule: null, error: e.message || "載入失敗" };
+      if (!silent) renderStation(id, null, e.message || "載入失敗");
+      return false;
+    } finally {
+      if (my === nonce) inFlight = false;
+    }
+  }
+
+  function groupPlatTrains(trains) {
+    const groups = [];
+    const idx = new Map();
+    for (const t of trains) {
+      const key = String(t.route_no).toUpperCase() + "|" + (t.dest_ch || "") + "|" + (t.arrival_departure || "");
+      if (!idx.has(key)) {
+        idx.set(key, groups.length);
+        groups.push({ route: t.route_no, dest: t.dest_ch, special: isSpecial(t), ad: t.arrival_departure, remark: t.routeRemarkChi2, trains: [] });
+      }
+      groups[idx.get(key)].trains.push(t);
+    }
+    groups.forEach((g) => g.trains.sort((a, b) => a.eta.sortKey - b.eta.sortKey));
+    return groups;
+  }
+
+  function platsSkipNumbers(plats) {
+    if (!plats.length) return false;
+    const ids = plats.map((p) => Number(p.id)).filter((n) => Number.isFinite(n)).sort((a, b) => a - b);
+    for (let i = 0; i < ids.length; i++) {
+      if (ids[i] !== i + 1) return true;
+    }
+    return false;
+  }
+  function platNoteHtml() {
+    return '<p class="plat-note muted" data-plat-note="1">僅列出目前有班次的月台</p>';
+  }
+  function syncPlatNote(plats) {
+    const want = platsSkipNumbers(plats);
+    const note = boardEl.querySelector("[data-plat-note]");
+    if (want && !note) {
+      const el = document.createElement("p");
+      el.className = "plat-note muted";
+      el.setAttribute("data-plat-note", "1");
+      el.textContent = "僅列出目前有班次的月台";
+      const head = boardEl.querySelector("[data-station-board]");
+      if (head) head.insertAdjacentElement("afterend", el);
+      else boardEl.prepend(el);
+    } else if (!want && note) {
+      note.remove();
+    }
+  }
+
+  function platHeading(p) {
+    const dests = [];
+    const seen = new Set();
+    for (const g of groupPlatTrains(p.trains)) {
+      const d = String(g.dest || "").trim();
+      if (!d || seen.has(d)) continue;
+      seen.add(d);
+      dests.push(d);
+    }
+    let html = "<h3 class=\"plat\">月台 " + p.id;
+    if (dests.length) {
+      html += '<span class="plat-dest">（前往：' + dests.map(esc).join("、") + "）</span>";
+    }
+    return html + "</h3>";
+  }
+
+  function platBody(p) {
+    const groups = groupPlatTrains(p.trains);
+    return groups.map((g) => {
+      const first = g.trains[0];
+      return '<div class="stop-row" data-route-row="' + esc(g.route) + '">' +
+        '<button type="button" class="stop-name train" data-rt="' + esc(g.route) + '" style="border-top:0;padding:0;">' +
+        badge(g.route) +
+        '<span class="grow"><p class="dest">' + esc(g.dest) + (g.special ? ' <span class="tml">特別班</span>' : "") +
+        '</p><p class="tiny">' + esc(carLabel(first)) + " · " + (g.ad === "D" ? "開出" : "抵達") +
+        (g.remark ? " · " + esc(g.remark) : "") + "</p></span></button>" +
+        pills(g.trains, "沒有班次", "plat-" + p.id + "-" + g.route + "-" + (g.dest || "")) +
+        "</div>";
+    }).join("");
+  }
+
+  function renderStation(id, schedule, error) {
+    const stop = STOP_BY_ID[id];
+    const fav = favorites().indexOf(id) >= 0;
+    const plats = platformsOf(schedule);
+    const time = schedule && schedule.system_time ? schedule.system_time.slice(11, 19) : "";
+    let html = '<div class="card" data-station-board="1"><div class="head-row"><div><h2 class="title">' + esc(stop ? stop.nameZh : "車站 " + id) + "</h2>";
+    html += '<p class="en" id="stationUpdated">' + esc(stop ? stop.nameEn : "") + (stop && stop.interchangeTml ? " · 屯馬綫轉乘" : "") +
+      (time ? " · 更新 " + esc(time) : "") + "</p></div>";
+    html += '<button type="button" class="star' + (fav ? " on" : "") + '" id="favBtn" aria-label="常用車站">' + (fav ? "★" : "☆") + "</button></div>";
+    if (stop && stop.interchangeTml) html += '<div style="margin-top:8px;"><span class="tml">屯馬綫</span></div>';
+    if (schedule && schedule.status !== 1) html += '<p class="warn">服務狀態異常，班次或未能顯示。</p>';
+    html += "</div>";
+    if (error) html += '<div class="card"><p class="warn">未能取得到站資料，請稍後再試。</p></div>';
+    else if (!plats.length) html += '<div class="card"><p class="muted">此站暫時沒有即將到站的列車。</p></div>';
+    else {
+      if (platsSkipNumbers(plats)) html += platNoteHtml();
+      for (const p of plats) {
+        html += '<div class="card" data-plat="' + p.id + '">' + platHeading(p) + platBody(p) + "</div>";
+      }
+    }
+    boardEl.innerHTML = html;
+    bindFav(id, schedule, error);
+  }
+
+  function patchStation(id, schedule, error) {
+    const stop = STOP_BY_ID[id];
+    const time = schedule && schedule.system_time ? schedule.system_time.slice(11, 19) : "";
+    const en = $("stationUpdated");
+    if (en && stop) {
+      en.textContent = (stop.nameEn || "") + (stop.interchangeTml ? " · 屯馬綫轉乘" : "") + (time ? " · 更新 " + time : "");
+    }
+    const plats = platformsOf(schedule);
+    const seenPlat = new Set();
+    for (const p of plats) {
+      seenPlat.add(String(p.id));
+      let card = boardEl.querySelector('[data-plat="' + p.id + '"]');
+      if (!card) {
+        card = document.createElement("div");
+        card.className = "card";
+        card.setAttribute("data-plat", String(p.id));
+        boardEl.appendChild(card);
+      }
+      const nextBody = platHeading(p) + platBody(p);
+      if (card.innerHTML !== nextBody) {
+        const prev = {};
+        card.querySelectorAll("[data-pills]").forEach((el) => { prev[el.getAttribute("data-pills")] = el.innerHTML; });
+        card.innerHTML = nextBody;
+        card.querySelectorAll("[data-pills]").forEach((el) => {
+          const k = el.getAttribute("data-pills");
+          if (prev[k] && prev[k] !== el.innerHTML) {
+            el.querySelectorAll(".pill").forEach((p2) => {
+              p2.classList.add("changed");
+              setTimeout(() => p2.classList.remove("changed"), 600);
+            });
+          }
+        });
+      }
+    }
+    boardEl.querySelectorAll("[data-plat]").forEach((card) => {
+      if (!seenPlat.has(card.getAttribute("data-plat"))) card.remove();
+    });
+    syncPlatNote(plats);
+    bindFav(id, schedule, error);
+  }
+
+  async function fetchRouteDirs(route) {
+    return Promise.all(route.directions.map(async (d) => {
+      const destLabel = d.destZh;
+      const stops = await mapPool(d.stops, 6, async (st) => {
+        const meta = STOP_BY_ID[st.stopId];
+        try {
+          const schedule = await fetchStation(st.stopId);
+          return {
+            seq: st.seq, stopId: st.stopId,
+            nameZh: meta ? meta.nameZh : "車站 " + st.stopId,
+            nameEn: meta ? meta.nameEn : "",
+            interchangeTml: !!(meta && meta.interchangeTml),
+            trains: filterRouteTrains(schedule, route.code, d.destZh, route.circular),
+          };
+        } catch (e) {
+          if (isAbortError(e)) throw e;
+          return {
+            seq: st.seq, stopId: st.stopId,
+            nameZh: meta ? meta.nameZh : "車站 " + st.stopId,
+            nameEn: meta ? meta.nameEn : "",
+            interchangeTml: !!(meta && meta.interchangeTml),
+            trains: [], error: true
+          };
+        }
+      });
+      return { dir: d.dir, origZh: d.origZh, destZh: destLabel, circular: route.circular, stops };
+    }));
+  }
+
+  async function selectRoute(code, silent) {
+    const switching = !silent;
+    const next = { kind: "route", code };
+    if (switching) rememberNav(next);
+    selection = next;
+    setHash("route", code);
+    homeEl.innerHTML = "";
+    const route = ROUTE_BY_CODE[code];
+    if (switching) setStatus(badge(code) + " 路線 " + esc(code), route ? route.nameZh : "");
+    const my = ++nonce;
+    beginLive();
+    if (!route) {
+      boardEl.innerHTML = '<div class="card"><p class="muted">找不到路線 ' + esc(code) + "。</p></div>";
+      return false;
+    }
+    if (switching && !boardEl.querySelector("[data-route-board]")) {
+      boardEl.innerHTML = '<div class="card loading">正在載入沿線各站班次…</div>';
+    } else {
+      boardEl.querySelectorAll(".pills").forEach((el) => el.classList.add("updating"));
+    }
+    inFlight = true;
+    try {
+      const dirs = await fetchRouteDirs(route);
+      if (my !== nonce) return null;
+      lastRoute = { code, dirs };
+      if (silent && boardEl.querySelector("[data-route-board]")) patchRoute(code, dirs);
+      else renderRoute(code, dirs);
+      if (my === nonce) {
+        seconds = refreshEvery;
+        showCount();
+      }
+      return true;
+    } catch (e) {
+      if (isAbortError(e) || my !== nonce) return null;
+      if (!silent) boardEl.innerHTML = '<div class="card"><p class="warn">未能載入路線資料。</p></div>';
+      return false;
+    } finally {
+      if (my === nonce) inFlight = false;
+      boardEl.querySelectorAll(".pills").forEach((el) => el.classList.remove("updating"));
+    }
+  }
+
+  function renderRoute(code, dirs) {
+    boardEl.innerHTML = dirs.map((d) => {
+      let html = '<div class="card" data-route-board="1">' + badge(code) +
+        ' <span class="dir-tag">' + (d.circular ? "循環線" : d.dir === 1 ? "去程" : "回程") + "</span>";
+      if (d.circular) {
+        html += '<div class="dir-title"><span class="zh-name">' + esc(d.origZh) + '</span> <span class="arrow">↺</span> <span class="zh-name">' + esc(d.destZh) + "</span></div>";
+        html += '<p class="desc">單向循環 · ' + d.stops.length + " 個車站</p>";
+      } else {
+        html += '<div class="dir-title"><span class="zh-name">' + esc(d.origZh) + '</span> <span class="arrow">→</span> <span class="zh-name">' + esc(d.destZh) + "</span></div>";
+        html += '<p class="desc">' + d.stops.length + " 個車站</p>";
+      }
+      html += d.stops.map((st) => {
+        return '<div class="stop-row"><button type="button" class="stop-name" data-st="' + st.stopId + '">' +
+          st.seq + '. <span class="zh-name">' + esc(st.nameZh) + "</span>" +
+          '<div class="meta">' + esc(st.nameEn) + (st.interchangeTml ? " · 屯馬綫" : "") + "</div></button>" +
+          pills(st.trains, st.error ? "暫時無法取得" : "沒有班次", d.dir + "-" + st.stopId) + "</div>";
+      }).join("");
+      return html + "</div>";
+    }).join("");
+  }
+
+  function patchRoute(code, dirs) {
+    dirs.forEach((d) => {
+      d.stops.forEach((st) => {
+        patchPills(d.dir + "-" + st.stopId, st.trains, st.error ? "暫時無法取得" : "沒有班次");
+      });
+    });
+  }
+
+  function reload(forceFull) {
+    if (!selection || inFlight || !pageVisible()) return;
+    if (!forceFull && selection.kind === "station" && lastStation && lastStation.id === selection.id) {
+      selectStation(selection.id, true);
+      return;
+    }
+    if (!forceFull && selection.kind === "route" && lastRoute && lastRoute.code === selection.code) {
+      selectRoute(selection.code, true);
+      return;
+    }
+    if (selection.kind === "station") selectStation(selection.id, false);
+    else selectRoute(selection.code, false);
+  }
+  function goHome() {
+    nonce += 1;
+    abortLive();
+    inFlight = false;
+    selection = null;
+    navStack = [];
+    navigatingBack = false;
+    setHash("home");
+    stopClock();
+    suggestEl.hidden = true;
+    setFloatRefreshVisible(false);
+    renderHome();
+  }
+  function applyHash() {
+    const h = (location.hash || "").replace(/^#\/?/, "");
+    const st = h.match(/^station\/(\d+)/);
+    const rt = h.match(/^route\/(.+)/);
+    if (st) {
+      const id = Number(st[1]);
+      if (!selection || selection.kind !== "station" || selection.id !== id) selectStation(id);
+      return;
+    }
+    if (rt) {
+      const code = decodeURIComponent(rt[1]);
+      if (!selection || selection.kind !== "route" || selection.code !== code) selectRoute(code);
+      return;
+    }
+    if (selection) goHome();
+    else renderHome();
+  }
+
+  qEl.addEventListener("input", () => {
+    activeIdx = 0;
+    showSuggest(searchLrt(qEl.value));
+  });
+  qEl.addEventListener("focus", () => {
+    if (qEl.value.trim()) showSuggest(searchLrt(qEl.value));
+  });
+  qEl.addEventListener("keydown", (e) => {
+    if (e.key === "ArrowDown") { e.preventDefault(); activeIdx = Math.min(activeIdx + 1, Math.max(0, lastHits.length - 1)); showSuggest(lastHits); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); activeIdx = Math.max(activeIdx - 1, 0); showSuggest(lastHits); }
+    else if (e.key === "Enter") { e.preventDefault(); const h = lastHits[activeIdx] || lastHits[0]; if (h) pickHit(h); }
+    else if (e.key === "Escape") suggestEl.hidden = true;
+  });
+  $("searchBtn").addEventListener("click", () => {
+    const hits = searchLrt(qEl.value);
+    const h = hits[activeIdx] || hits[0];
+    if (h) pickHit(h);
+  });
+  suggestEl.addEventListener("click", (e) => {
+    const btn = e.target.closest("button[data-i]");
+    if (!btn) return;
+    const h = lastHits[Number(btn.getAttribute("data-i"))];
+    if (h) pickHit(h);
+  });
+  document.addEventListener("mousedown", (e) => {
+    if (!e.target.closest(".search")) suggestEl.hidden = true;
+  });
+  document.addEventListener("click", (e) => {
+    const st = e.target.closest("[data-st]");
+    if (st) { selectStation(Number(st.getAttribute("data-st"))); return; }
+    const rt = e.target.closest("[data-rt]");
+    if (rt) { selectRoute(rt.getAttribute("data-rt")); }
+  });
+  backBtn.addEventListener("click", goBack);
+  headerBackBtn.addEventListener("click", goBack);
+  $("homeBtn").addEventListener("click", goHome);
+  $("floatRefreshBtn").addEventListener("click", manualRefresh);
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "hidden") {
+      nonce += 1;
+      abortLive();
+      inFlight = false;
+      stopClock();
+      return;
+    }
+    if (!selection) return;
+    reload();
+    startClock();
+  });
+  $("slotCount").addEventListener("change", (e) => {
+    const n = Number(e.target.value);
+    if (n !== 1 && n !== 2 && n !== 3) return;
+    slotCount = n;
+    try { localStorage.setItem(SLOT_KEY, JSON.stringify(slotCount)); } catch (err) {}
+    if (selection) reload(true);
+  });
+  $("refreshEvery").addEventListener("change", (e) => {
+    const n = Number(e.target.value);
+    if (n !== 10 && n !== 12 && n !== 15) return;
+    refreshEvery = n;
+    seconds = refreshEvery;
+    showCount();
+    try { localStorage.setItem(REFRESH_KEY, JSON.stringify(refreshEvery)); } catch (err) {}
+    if (selection) startClock();
+  });
+  window.addEventListener("hashchange", applyHash);
+
+  applyHash();
+})();
+</script>
+</body>
+</html>
