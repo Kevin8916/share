@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>香港巴士與小巴實時 ETA 查詢平台 (v14.5.2)</title>
+  <title>香港巴士與小巴實時 ETA 查詢平台 (v14.5.3)</title>
   <style>
     :root {
       --primary-color: #0056b3;
@@ -41,6 +41,13 @@
       font-size: 1.6rem;
       margin-top: 10px;
       margin-bottom: 20px;
+    }
+
+    h1 .app-version {
+      font-size: 0.5em;
+      font-weight: 600;
+      vertical-align: middle;
+      margin-left: 0.2em;
     }
 
     .search-box {
@@ -133,6 +140,10 @@
       padding: 2px 8px;
       border-radius: 12px;
       font-weight: bold;
+      min-width: 2.2em;
+      text-align: center;
+      display: inline-block;
+      font-variant-numeric: tabular-nums;
     }
 
     .direction-container {
@@ -240,27 +251,22 @@
       border: 1px dashed #ccc;
     }
 
-    .btn-refresh {
-      background-color: var(--primary-color);
-      color: white;
-      border: none;
-      padding: 5px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 0.85rem;
-      font-weight: bold;
-      transition: background-color 0.2s, transform 0.1s;
-      margin-right: 10px;
-    }
-
-    .btn-refresh:hover { background-color: #004085; }
-    .btn-refresh:active { transform: scale(0.96); }
-    .btn-refresh:disabled { opacity: 0.6; cursor: not-allowed; }
-
     .status-controls {
       display: flex;
       align-items: center;
       flex-wrap: wrap;
+      gap: 8px 12px;
+    }
+
+    .status-controls label {
+      font-size: 0.88rem;
+      font-weight: bold;
+      color: #004085;
+    }
+
+    .control-group {
+      display: inline-flex;
+      align-items: center;
       gap: 6px;
     }
 
@@ -272,7 +278,6 @@
       background-color: #fff;
       font-weight: bold;
       color: #333;
-      margin-right: 10px;
       cursor: pointer;
     }
   </style>
@@ -280,7 +285,7 @@
 <body>
 
 <div class="container">
-  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 (v14.5.2)</h1>
+  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v14.5.3)</span></h1>
 
   <div class="search-box">
     <input type="text" id="routeInput" placeholder="輸入路線編號 (例: 5B, 116, 140M, 1, K12)..." autocomplete="off">
@@ -291,14 +296,23 @@
   <div id="statusBar" class="status-bar" style="display:none;">
     <span>正在檢視路線：<strong id="activeRouteName">--</strong></span>
     <div class="status-controls">
-      <label for="slotCountSelect" style="font-size:0.88rem; font-weight:bold; margin-right:4px;">顯示班次：</label>
-      <select id="slotCountSelect" class="slot-select" onchange="handleSlotCountChange(this.value)">
-        <option value="1">1 班</option>
-        <option value="2" selected>2 班</option>
-        <option value="3">3 班</option>
-      </select>
-      <button id="manualRefreshBtn" class="btn-refresh" onclick="manualRefresh()">🔄 手動刷新</button>
-      <span>下次自動更新：<span id="countdownTimer" class="timer-badge">15</span> 秒</span>
+      <div class="control-group">
+        <label for="slotCountSelect">班次</label>
+        <select id="slotCountSelect" class="slot-select" onchange="handleSlotCountChange(this.value)">
+          <option value="1">1 班</option>
+          <option value="2" selected>2 班</option>
+          <option value="3">3 班</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="refreshIntervalSelect">自動更新</label>
+        <select id="refreshIntervalSelect" class="slot-select" onchange="handleRefreshIntervalChange(this.value)">
+          <option value="10">10 秒</option>
+          <option value="12" selected>12 秒</option>
+          <option value="15">15 秒</option>
+        </select>
+      </div>
+      <span id="countdownTimer" class="timer-badge" title="距離下次自動更新">12</span> 秒
     </div>
   </div>
 
@@ -362,7 +376,8 @@
   let selectedRoute = null;
   let refreshTimer = null;
   let countdownTimer = null;
-  let secondsRemaining = 15;
+  let refreshIntervalSec = 12;
+  let secondsRemaining = refreshIntervalSec;
   let isRoutesLoaded = false;
   let displaySlotCount = 2;
   const gmbDetailCache = new Map();
@@ -702,21 +717,30 @@
     resetAutoRefresh();
   }
 
+  function formatCountdown(sec) {
+    return String(sec).padStart(2, '0');
+  }
+
+  function setCountdownDisplay(sec) {
+    const el = document.getElementById('countdownTimer');
+    if (el) el.innerText = formatCountdown(sec);
+  }
+
   function resetAutoRefresh() {
     if (refreshTimer) clearInterval(refreshTimer);
     if (countdownTimer) clearInterval(countdownTimer);
-    secondsRemaining = 15;
-    document.getElementById('countdownTimer').innerText = secondsRemaining;
+    secondsRemaining = refreshIntervalSec;
+    setCountdownDisplay(secondsRemaining);
 
     countdownTimer = setInterval(() => {
       secondsRemaining--;
-      if (secondsRemaining <= 0) secondsRemaining = 15;
-      document.getElementById('countdownTimer').innerText = secondsRemaining;
+      if (secondsRemaining <= 0) secondsRemaining = refreshIntervalSec;
+      setCountdownDisplay(secondsRemaining);
     }, 1000);
 
     refreshTimer = setInterval(() => {
       if (selectedRoute) fetchAndDisplayETA(selectedRoute, true);
-    }, 15000);
+    }, refreshIntervalSec * 1000);
   }
 
   async function fetchAndDisplayETA(routeInfo, isSilentRefresh = false) {
@@ -1282,18 +1306,12 @@
     if (selectedRoute) fetchAndDisplayETA(selectedRoute, true);
   }
 
-  function manualRefresh() {
-    if (!selectedRoute) return;
-    const btn = document.getElementById('manualRefreshBtn');
-    btn.disabled = true;
-    btn.innerText = '⏳ 刷新中...';
-    fetchAndDisplayETA(selectedRoute, true).finally(() => {
-      resetAutoRefresh();
-      setTimeout(() => {
-        btn.disabled = false;
-        btn.innerText = '🔄 手動刷新';
-      }, 500);
-    });
+  function handleRefreshIntervalChange(val) {
+    const next = parseInt(val, 10);
+    if (!next || next < 1) return;
+    refreshIntervalSec = next;
+    if (selectedRoute) resetAutoRefresh();
+    else setCountdownDisplay(refreshIntervalSec);
   }
 </script>
 
