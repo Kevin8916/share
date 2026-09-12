@@ -783,7 +783,9 @@
     const el = document.getElementById('countdownTimer');
     if (el) el.innerText = formatted;
     const floatBtn = document.getElementById('floatRefreshBtn');
-    if (floatBtn) floatBtn.innerText = `刷新[${formatted}]`;
+    if (floatBtn && !floatBtn.classList.contains('is-opaque')) {
+      floatBtn.innerText = `刷新[${formatted}]`;
+    }
   }
 
   function resetAutoRefresh() {
@@ -1378,11 +1380,13 @@
     const btn = document.getElementById('floatRefreshBtn');
     if (!btn) return;
     btn.classList.add('is-opaque');
+    btn.innerText = '已刷新';
     if (floatOpaqueTimer) clearTimeout(floatOpaqueTimer);
     floatOpaqueTimer = setTimeout(() => {
       btn.classList.remove('is-opaque');
       btn.blur();
       floatOpaqueTimer = null;
+      setCountdownDisplay(secondsRemaining);
     }, 2000);
   }
 
@@ -1392,7 +1396,6 @@
     pulseFloatRefreshOpaque();
     isManualRefreshing = true;
     if (btn) btn.disabled = true;
-    resetAutoRefresh();
     fetchAndDisplayETA(selectedRoute, true).finally(() => {
       isManualRefreshing = false;
       if (btn) btn.disabled = false;
