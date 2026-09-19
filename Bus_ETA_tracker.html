@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>香港巴士與小巴實時 ETA 查詢平台 (v15.2)</title>
+  <title>香港巴士與小巴實時 ETA 查詢平台 (v15.5)</title>
   <style>
     :root {
       --primary-color: #0056b3;
@@ -242,7 +242,7 @@
     .eta-slot.eta-empty .eta-value { color: #9e9e9e; }
 
     .eta-slot { transition: background-color .2s ease, color .2s ease, box-shadow .2s ease; }
-    .eta-slot.changed { box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary-color) 45%, transparent); }
+    .eta-slot.changed { box-shadow: 0 0 0 2px rgba(0, 86, 179, 0.45); }
 
     .loading {
       text-align: center;
@@ -351,7 +351,7 @@
 <body>
 
 <div class="container">
-  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v15.2)</span></h1>
+  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v15.5)</span></h1>
 
   <div class="search-box">
     <input type="text" id="routeInput" placeholder="輸入路線編號 (例: 5B, 116, 140M, 1, K12)..." autocomplete="off">
@@ -2106,6 +2106,16 @@
     return mtrStopNameCache.get(id) || id;
   }
 
+  function mtrBusDirKey(stopId) {
+    const m = String(stopId || '').match(/-n?([DU])\d+$/i);
+    return m ? m[1].toUpperCase() : 'D';
+  }
+
+  function mtrBusStopLabel(ls, fallbackIdx) {
+    return (ls && (ls.busStopName_zh || ls.busStopName_chi || ls.busStopName_tc)) ||
+      getMtrBusStopName(ls && ls.busStopId) || ('站 ' + fallbackIdx);
+  }
+
   function parseMtrArrival(bus) {
     if (!bus) return null;
     const text = bus.arrivalTimeText || bus.departureTimeText || '';
@@ -2115,8 +2125,9 @@
       eta = new Date(Date.now() + sec * 1000).toISOString();
     }
     const scheduled = String(bus.isScheduled) === '1';
-    const remark = [text, scheduled ? '原定班次' : '', bus.busDestination || ''].filter(Boolean).join(' ');
-    if (!eta && !remark) return null;
+    const remark = [scheduled ? '原定班次' : '', bus.busDestination || ''].filter(Boolean).join(' ');
+    if (!eta && !remark && !text) return null;
+    if (!eta && !remark) return { eta: null, remark: text };
     return { eta, remark };
   }
 
@@ -2132,43 +2143,69 @@
     }
     const statusRemark = schedule.routeStatusRemarkTitle || schedule.routeStatusRemarkContent || '';
     const liveStops = schedule.busStop || [];
-    const containerId = 'mtrb-card-' + routeInfo.route + '-ALL';
-    let card = document.getElementById(containerId);
-    if (!card) {
-      card = document.createElement('div');
-      card.id = containerId;
-      card.className = 'dir-card';
-      card.innerHTML = '<div class="dir-title">' + esc('路線：' + (routeInfo.origDest || routeInfo.route)) +
-        '<span class="dir-sub">' + esc('港鐵巴士 ' + routeInfo.route + (statusRemark ? '　' + statusRemark : '')) +
-        '</span></div><ul class="stop-list"></ul>';
-      resultsContainer.appendChild(card);
-    } else if (statusRemark) {
-      const sub = card.querySelector('.dir-sub');
-      if (sub) sub.textContent = '港鐵巴士 ' + routeInfo.route + '　' + statusRemark;
+    const groups = { D: [], U: [] };
+    liveStops.forEach((ls) => {
+      const key = mtrBusDirKey(ls.busStopId);
+      (groups[key] || groups.D).push(ls);
+    });
+    const dirOrder = ['D', 'U'];
+    const hasAny = dirOrder.some((k) => groups[k].length);
+    if (!hasAny) {
+      if (!isSilentRefresh && token === activeRequestToken) {
+        resultsContainer.innerHTML = '<div class="loading">暫時沒有港鐵巴士班次資料。</div>';
+      }
+      return;
     }
-    const stopListEl = card.querySelector('.stop-list');
-    liveStops.forEach((ls, idx) => {
-      const sid = 'mtrb-live-' + routeInfo.route + '-' + (ls.busStopId || idx);
-      let stopItem = document.getElementById(sid);
-      if (!stopItem) {
-        stopItem = document.createElement('li');
-        stopItem.id = sid;
-        stopItem.className = 'stop-item';
-        stopItem.setAttribute('data-op', 'MTRB');
-        stopListEl.appendChild(stopItem);
-      }
-      const name = ls.busStopName_zh || ls.busStopName_chi || ls.busStopName_tc || getMtrBusStopName(ls.busStopId) || ('站 ' + (idx + 1));
-      const rawEtas = (ls.bus || []).map(parseMtrArrival).filter(Boolean);
-      const slotsHtml = renderEtaSlots(rawEtas, statusRemark ? { remark: statusRemark } : null);
-      const nameText = String(idx + 1) + '. ' + name;
-      let nameEl = stopItem.querySelector('.stop-name');
-      let box = stopItem.querySelector('.eta-box');
-      if (!nameEl || !box) {
-        stopItem.innerHTML = '<span class="stop-name">' + esc(nameText) + '</span><div class="eta-box">' + slotsHtml + '</div>';
+    dirOrder.forEach((dirKey) => {
+      const group = groups[dirKey];
+      if (!group.length) return;
+      const dirWord = dirKey === 'U' ? '回程' : '去程';
+      const origName = mtrBusStopLabel(group[0], 1);
+      const destName = mtrBusStopLabel(group[group.length - 1], group.length);
+      const containerId = 'mtrb-card-' + routeInfo.route + '-' + dirKey;
+      let card = document.getElementById(containerId);
+      const titleText = dirWord + '：' + origName + ' ➔ ' + destName;
+      const subText = '港鐵巴士 ' + routeInfo.route + (statusRemark ? '　' + statusRemark : '');
+      if (!card) {
+        card = document.createElement('div');
+        card.id = containerId;
+        card.className = 'dir-card';
+        card.innerHTML = '<div class="dir-title">' + esc(titleText) +
+          '<span class="dir-sub">' + esc(subText) + '</span></div><ul class="stop-list"></ul>';
+        resultsContainer.appendChild(card);
       } else {
-        nameEl.textContent = nameText;
-        setEtaBox(box, slotsHtml);
+        const titleEl = card.querySelector('.dir-title');
+        const sub = card.querySelector('.dir-sub');
+        if (titleEl) {
+          const titleNode = titleEl.childNodes[0];
+          if (titleNode && titleNode.nodeType === 3) titleNode.textContent = titleText;
+        }
+        if (sub) sub.textContent = subText;
       }
+      const stopListEl = card.querySelector('.stop-list');
+      group.forEach((ls, idx) => {
+        const sid = 'mtrb-live-' + routeInfo.route + '-' + (ls.busStopId || dirKey + '-' + idx);
+        let stopItem = document.getElementById(sid);
+        if (!stopItem) {
+          stopItem = document.createElement('li');
+          stopItem.id = sid;
+          stopItem.className = 'stop-item';
+          stopItem.setAttribute('data-op', 'MTRB');
+          stopListEl.appendChild(stopItem);
+        }
+        const name = mtrBusStopLabel(ls, idx + 1);
+        const rawEtas = (ls.bus || []).map(parseMtrArrival).filter(Boolean);
+        const slotsHtml = renderEtaSlots(rawEtas, statusRemark ? { remark: statusRemark } : null);
+        const nameText = String(idx + 1) + '. ' + name;
+        let nameEl = stopItem.querySelector('.stop-name');
+        let box = stopItem.querySelector('.eta-box');
+        if (!nameEl || !box) {
+          stopItem.innerHTML = '<span class="stop-name">' + esc(nameText) + '</span><div class="eta-box">' + slotsHtml + '</div>';
+        } else {
+          nameEl.textContent = nameText;
+          setEtaBox(box, slotsHtml);
+        }
+      });
     });
   }
 
@@ -2316,13 +2353,25 @@
     return t.indexOf('eta-slot') < 0;
   }
 
+  function etaSlotSignature(el) {
+    const cls = Array.from(el.classList).filter((c) => c !== 'changed').sort().join(' ');
+    return cls + '\0' + (el.textContent || '');
+  }
+
   function setEtaBox(box, html) {
     if (!box) return;
-    const prev = box.innerHTML;
-    if (prev === html) return;
+    if (etaBoxLooksPlaceholder(box.innerHTML)) {
+      box.innerHTML = html;
+      return;
+    }
+    const prevKeys = Array.from(box.querySelectorAll('.eta-slot')).map(etaSlotSignature);
+    const nextWrap = document.createElement('div');
+    nextWrap.innerHTML = html;
+    const nextKeys = Array.from(nextWrap.querySelectorAll('.eta-slot')).map(etaSlotSignature);
+    if (prevKeys.length === nextKeys.length && prevKeys.every((k, i) => k === nextKeys[i])) return;
     box.innerHTML = html;
-    if (etaBoxLooksPlaceholder(prev)) return;
-    box.querySelectorAll('.eta-slot').forEach((p) => {
+    box.querySelectorAll('.eta-slot').forEach((p, i) => {
+      if (nextKeys[i] === prevKeys[i]) return;
       p.classList.add('changed');
       setTimeout(() => p.classList.remove('changed'), 600);
     });
