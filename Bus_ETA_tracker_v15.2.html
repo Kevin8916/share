@@ -1,0 +1,2406 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>香港巴士與小巴實時 ETA 查詢平台 (v15.2)</title>
+  <style>
+    :root {
+      --primary-color: #0056b3;
+      --bg-color: #f4f7f9;
+      --card-bg: #ffffff;
+      --text-color: #333333;
+      --border-color: #e0e0e0;
+      --accent-kmb: #e60012;
+      --accent-ctb: #f5a623;
+      --accent-nlb: #2c6e49;
+      --accent-mtr: #00706a;
+      --accent-gmb: #27ae60;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      margin: 0;
+      padding: 16px;
+      display: flex;
+      justify-content: center;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 850px;
+    }
+
+    h1 {
+      text-align: center;
+      color: var(--primary-color);
+      font-size: 1.6rem;
+      margin-top: 10px;
+      margin-bottom: 20px;
+    }
+
+    h1 .app-version {
+      font-size: 0.5em;
+      font-weight: 600;
+      vertical-align: middle;
+      margin-left: 0.2em;
+    }
+
+    .search-box {
+      position: relative;
+      margin-bottom: 12px;
+    }
+
+    input[type="text"] {
+      width: 100%;
+      padding: 14px 16px;
+      font-size: 1.1rem;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input[type="text"]:focus {
+      border-color: var(--primary-color);
+    }
+
+    .status-hint {
+      font-size: 0.85rem;
+      color: #666;
+      margin-bottom: 16px;
+      padding-left: 4px;
+    }
+
+    .autocomplete-list {
+      position: absolute;
+      top: 100%;
+      left: 0;
+      right: 0;
+      background: var(--card-bg);
+      border: 1px solid #ddd;
+      border-radius: 0 0 8px 8px;
+      max-height: 480px;
+      overflow-y: auto;
+      z-index: 1000;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.12);
+    }
+
+    .autocomplete-item {
+      padding: 12px 16px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .autocomplete-item:hover {
+      background-color: #eef5ff;
+    }
+
+    .badge {
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: white;
+      white-space: nowrap;
+    }
+
+    .badge-kmb { background-color: var(--accent-kmb); }
+    .badge-ctb { background-color: var(--accent-ctb); color: #222; }
+    .badge-nlb { background-color: var(--accent-nlb); }
+    .badge-mtr { background-color: var(--accent-mtr); }
+    .badge-gmb { background-color: var(--accent-gmb); }
+
+    .status-bar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #e8f4fd;
+      border: 1px solid #b6e0fe;
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin-bottom: 20px;
+      font-size: 0.95rem;
+      color: #004085;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .timer-badge {
+      background: #0056b3;
+      color: white;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: bold;
+      min-width: 2.2em;
+      text-align: center;
+      display: inline-block;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .direction-container {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .dir-card {
+      background: var(--card-bg);
+      border-radius: 8px;
+      padding: 18px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+      border: 1px solid var(--border-color);
+    }
+
+    .dir-title {
+      font-size: 1.15rem;
+      font-weight: bold;
+      color: var(--primary-color);
+      border-bottom: 2px solid var(--primary-color);
+      padding-bottom: 8px;
+      margin-bottom: 14px;
+    }
+
+    .dir-sub {
+      display: block;
+      font-size: 0.8rem;
+      font-weight: normal;
+      color: #666;
+      margin-top: 4px;
+    }
+
+    .stop-list {
+      list-style: none;
+      padding: 0;
+      margin: 0;
+    }
+
+    .stop-item {
+      padding: 12px 0;
+      border-bottom: 1px dashed #e0e0e0;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      gap: 8px;
+    }
+
+    .stop-name {
+      font-weight: 500;
+      font-size: 1rem;
+      color: #222;
+      align-self: flex-start;
+      max-width: 100%;
+    }
+
+    .eta-box {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+      align-self: flex-end;
+      width: 100%;
+    }
+
+    .eta-slot {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.88rem;
+      border: 1px solid #ddd;
+      background: #ffffff;
+    }
+
+    .eta-slot .eta-label {
+      font-weight: bold;
+      color: #555;
+      padding-right: 4px;
+      border-right: 1px solid rgba(0,0,0,0.15);
+    }
+
+    .eta-slot .eta-value { font-weight: bold; }
+
+    .eta-slot.eta-realtime { background: #e1f5fe; border-color: #81d4fa; }
+    .eta-slot.eta-realtime .eta-value { color: #0288d1; }
+
+    .eta-slot.eta-now { background: #e8f5e9; border-color: #a5d6a7; }
+    .eta-slot.eta-now .eta-value { color: #2e7d32; }
+
+    .eta-slot.eta-scheduled { background: #fff3e0; border-color: #ffe0b2; }
+    .eta-slot.eta-scheduled .eta-value { color: #e65100; }
+
+    .eta-slot.eta-empty { background: #f5f5f5; border-color: #e0e0e0; }
+    .eta-slot.eta-empty .eta-value { color: #9e9e9e; }
+
+    .eta-slot { transition: background-color .2s ease, color .2s ease, box-shadow .2s ease; }
+    .eta-slot.changed { box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary-color) 45%, transparent); }
+
+    .loading {
+      text-align: center;
+      color: #666;
+      font-style: italic;
+      padding: 30px;
+      background: white;
+      border-radius: 8px;
+      border: 1px dashed #ccc;
+    }
+
+    .status-controls {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px 12px;
+    }
+
+    .status-controls label {
+      font-size: 0.88rem;
+      font-weight: bold;
+      color: #004085;
+    }
+
+    .control-group {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .slot-select {
+      padding: 4px 8px;
+      font-size: 0.88rem;
+      border-radius: 6px;
+      border: 1px solid #ccc;
+      background-color: #fff;
+      font-weight: bold;
+      color: #333;
+      cursor: pointer;
+    }
+
+    .joint-btn {
+      padding: 4px 10px;
+      font-size: 0.82rem;
+      border-radius: 999px;
+      border: 1px solid #8ab4d8;
+      background: #fff;
+      font-weight: 700;
+      color: #004085;
+      cursor: pointer;
+    }
+    .joint-btn[hidden] { display: none !important; }
+
+    #floatRefreshBtn {
+      display: none;
+      position: fixed;
+      bottom: max(16px, env(safe-area-inset-bottom));
+      right: max(16px, env(safe-area-inset-right));
+      z-index: 1100;
+      background: #0295FF;
+      color: #fff;
+      border: none;
+      border-radius: 999px;
+      padding: 6px 13.5px;
+      font-size: 0.7125rem;
+      font-weight: 700;
+      letter-spacing: 0.015em;
+      line-height: 1.2;
+      font-variant-numeric: tabular-nums;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      box-shadow: 0 3px 9px rgba(2, 149, 255, 0.22);
+      opacity: 0.5;
+      -webkit-tap-highlight-color: transparent;
+      touch-action: manipulation;
+      transition: background-color 0.2s, transform 0.1s, opacity 0.2s, box-shadow 0.2s;
+    }
+
+    #floatRefreshBtn.is-opaque,
+    #floatRefreshBtn:active {
+      background-color: #007FE0;
+      opacity: 1;
+      box-shadow: 0 3px 9px rgba(2, 149, 255, 0.38);
+    }
+    #floatRefreshBtn:active { transform: scale(0.96); }
+
+    @media (hover: hover) and (pointer: fine) {
+      #floatRefreshBtn:hover,
+      #floatRefreshBtn:focus-visible {
+        background-color: #007FE0;
+        opacity: 1;
+        box-shadow: 0 3px 9px rgba(2, 149, 255, 0.38);
+      }
+    }
+
+    #floatRefreshBtn:disabled {
+      cursor: not-allowed;
+      transform: none;
+    }
+    #floatRefreshBtn:disabled:not(.is-opaque) {
+      opacity: 0.4;
+    }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v15.2)</span></h1>
+
+  <div class="search-box">
+    <input type="text" id="routeInput" placeholder="輸入路線編號 (例: 5B, 116, 140M, 1, K12)..." autocomplete="off">
+    <div id="autocompleteList" class="autocomplete-list" style="display:none;"></div>
+  </div>
+  <div id="initStatus" class="status-hint">⏳ 正在載入九巴/龍運、城巴、嶼巴、港鐵巴士及綠色小巴路線資料...</div>
+
+  <div id="statusBar" class="status-bar" style="display:none;">
+    <span>正在檢視路線：<strong id="activeRouteName">--</strong></span>
+    <div class="status-controls">
+      <button type="button" id="jointSwitchBtn" class="joint-btn" hidden></button>
+      <div class="control-group">
+        <label for="slotCountSelect">班次</label>
+        <select id="slotCountSelect" class="slot-select">
+          <option value="1">1 班</option>
+          <option value="2" selected>2 班</option>
+          <option value="3">3 班</option>
+        </select>
+      </div>
+      <div class="control-group">
+        <label for="refreshIntervalSelect">自動更新</label>
+        <select id="refreshIntervalSelect" class="slot-select">
+          <option value="10">10 秒</option>
+          <option value="12" selected>12 秒</option>
+          <option value="15">15 秒</option>
+        </select>
+      </div>
+      <span id="countdownTimer" class="timer-badge" title="距離下次自動更新">12</span> 秒
+    </div>
+  </div>
+
+  <div id="results" class="direction-container"></div>
+</div>
+
+<button type="button" id="floatRefreshBtn" aria-label="手動刷新到站時間" title="手動刷新到站時間">刷新[12]</button>
+
+<script>
+(function () {
+  const API = {
+    KMB_ROUTES: 'https://data.etabus.gov.hk/v1/transport/kmb/route/',
+    KMB_ROUTE_STOPS: 'https://data.etabus.gov.hk/v1/transport/kmb/route-stop/',
+    KMB_STOP: 'https://data.etabus.gov.hk/v1/transport/kmb/stop/',
+    KMB_ETA: 'https://data.etabus.gov.hk/v1/transport/kmb/eta/',
+    GMB_ROUTES: 'https://data.etagmb.gov.hk/route',
+    GMB_ROUTE_STOPS: 'https://data.etagmb.gov.hk/route-stop/',
+    GMB_ETA: 'https://data.etagmb.gov.hk/eta/route-stop/',
+    CTB_ROUTES: 'https://rt.data.gov.hk/v2/transport/citybus/route/CTB',
+    CTB_ROUTE_STOPS: 'https://rt.data.gov.hk/v2/transport/citybus/route-stop/CTB/',
+    CTB_STOP: 'https://rt.data.gov.hk/v2/transport/citybus/stop/',
+    CTB_ETA: 'https://rt.data.gov.hk/v2/transport/citybus/eta/CTB/',
+    NLB_ROUTE_LIST: 'https://rt.data.gov.hk/v2/transport/nlb/route.php?action=list',
+    NLB_STOP_LIST: 'https://rt.data.gov.hk/v2/transport/nlb/stop.php?action=list',
+    NLB_ETA: 'https://rt.data.gov.hk/v2/transport/nlb/stop.php?action=estimatedArrivals',
+    MTR_BUS_ETA: 'https://rt.data.gov.hk/v1/transport/mtr/bus/getSchedule'
+  };
+
+  const TYPE_ORDER = { KMB: 0, CTB: 1, NLB: 2, MTRB: 3, GMB: 4 };
+  const BADGE_CLASS = { KMB: 'badge-kmb', CTB: 'badge-ctb', NLB: 'badge-nlb', MTRB: 'badge-mtr', GMB: 'badge-gmb' };
+  const REGION_LABEL = { HKI: '港島', KLN: '九龍', NT: '新界' };
+  const FETCH_MS = 8000;
+  const VIEW_MARGIN = 480;
+  const SCROLL_DEBOUNCE_MS = 100;
+  const SLOT_KEY = 'bus-eta-slots';
+  const REFRESH_KEY = 'bus-eta-refresh';
+
+  // 港鐵巴士：opendata CSV 無 CORS，搜尋用官方規格名單（2026-09），ETA／站序只信 getSchedule。站名對照來自官方 mtr_bus_stops.csv（2026-02）。
+  const MTR_BUS_ROUTE_SEED = [
+    { route: '506', origDest: '屯門碼頭 ↔ 兆麟／富健花園 ↔ 屯門站' },
+    { route: 'K12', origDest: '大埔墟站 ↔ 八號花園' },
+    { route: 'K14', origDest: '大埔超級城 ↔ 大埔墟站' },
+    { route: 'K17', origDest: '大埔墟站 ↔ 富善' },
+    { route: 'K18', origDest: '大埔墟站 ↔ 廣福' },
+    { route: 'K51', origDest: '富泰 ↔ 大欖／兆康站' },
+    { route: 'K51A', origDest: '富泰 ↔ 掃管笏' },
+    { route: 'K52', origDest: '悅湖山莊 ↔ 龍鼓灘' },
+    { route: 'K52A', origDest: '屯門站 ↔ 曾咀' },
+    { route: 'K52P', origDest: '龍鼓灘 ↔ 屯門站' },
+    { route: 'K53', origDest: '屯門站 ↔ 掃管笏（循環）' },
+    { route: 'K53S', origDest: '屯門站 ↔ 業旺邨（循環）' },
+    { route: 'K54', origDest: '和田邨 ↔ 屯門市中心（循環）' },
+    { route: 'K54A', origDest: '和田邨 ↔ 兆康站' },
+    { route: 'K58', origDest: '富泰 ↔ 掃管笏' },
+    { route: 'K65', origDest: '元朗站 ↔ 流浮山' },
+    { route: 'K65A', origDest: '天水圍站 ↔ 流浮山' },
+    { route: 'K66', origDest: '朗屏 ↔ 大棠黃泥墩村' },
+    { route: 'K68', origDest: '元朗工業邨 ↔ 元朗公園（循環）' },
+    { route: 'K73', origDest: '天恆 ↔ 元朗西' },
+    { route: 'K74', origDest: '天水圍市中心 ↔ 凹頭（循環）' },
+    { route: 'K75A', origDest: '天水圍站 ↔ 洪水橋（循環）' },
+    { route: 'K75P', origDest: '天瑞 ↔ 洪水橋（循環）' },
+    { route: 'K76', origDest: '天恆 ↔ 天水圍站' }
+  ];
+
+  // STATION_ID -> 中文站名（官方 CSV；getSchedule 只回傳代號）
+  const MTR_BUS_STOP_NAMES = {
+    "506-D010": "兆麟",
+    "506-D020": "友愛邨",
+    "506-D030": "輕鐵市中心站",
+    "506-D040": "輕鐵屯門站",
+    "506-D050": "輕鐵建安站",
+    "506-D060": "輕鐵青雲站",
+    "506-D070": "聖彼得堂",
+    "506-D080": "富健花園",
+    "506-D090": "新屯門中心",
+    "506-D100": "輕鐵蝴蝶站",
+    "506-D110": "蝴蝶邨蝶心樓",
+    "506-D120": "湖景邨湖碧樓",
+    "506-D130": "海翠花園",
+    "506-D140": "屯門碼頭",
+    "506-U010": "屯門碼頭",
+    "506-U020": "美樂花園",
+    "506-U030": "輕鐵蝴蝶站",
+    "506-U040": "輕鐵車廠站",
+    "506-U045": "富健花園",
+    "506-U050": "輕鐵龍門站",
+    "506-U060": "輕鐵青雲站",
+    "506-U070": "輕鐵建安站",
+    "506-U075": "屯門站",
+    "506-U080": "港鐵屯門站",
+    "506-U090": "屯門市中心",
+    "506-U100": "安定邨",
+    "506-U110": "輕鐵三聖站",
+    "506-U120": "兆麟",
+    "K12-D010": "八號花園",
+    "K12-D020": "大埔超級城",
+    "K12-D030": "新達廣場",
+    "K12-D040": "大埔墟站",
+    "K12-U010": "大埔墟站",
+    "K12-U020": "大埔超級城",
+    "K12-U030": "八號花園",
+    "K14-D010": "大埔超級城",
+    "K14-D020": "新達廣場",
+    "K14-D030": "大埔墟站",
+    "K17-D010": "富善",
+    "K17-D020": "新達廣場",
+    "K17-D030": "大埔墟站",
+    "K17-U010": "大埔墟站",
+    "K17-U020": "大埔中心第五期",
+    "K17-U030": "怡雅苑",
+    "K17-U040": "富善",
+    "K18-D010": "廣福",
+    "K18-D020": "新達廣場",
+    "K18-D030": "大埔墟站",
+    "K18-U010": "大埔墟站",
+    "K18-U020": "宏福苑",
+    "K18-U030": "廣福",
+    "K51-D010": "大欖",
+    "K51-D020": "小欖",
+    "K51-D030": "小欖澄麗路",
+    "K51-D040": "小欖村",
+    "K51-D050": "小欖新村",
+    "K51-D060": "愛琴灣",
+    "K51-D070": "小秀上村",
+    "K51-D080": "龍珠島",
+    "K51-D090": "香港黃金海岸",
+    "K51-D100": "黃金泳灘",
+    "K51-D110": "咖啡灣",
+    "K51-D120": "碧翠花園",
+    "K51-D130": "青山灣碼頭",
+    "K51-D140": "三聖邨",
+    "K51-D150": "恆福花園 (輕鐵三聖站)",
+    "K51-D160": "胡陳金枝中學",
+    "K51-D170": "青善遊樂場",
+    "K51-D180": "置樂花園",
+    "K51-D190": "屯門官立中學",
+    "K51-D200": "輕鐵市中心站",
+    "K51-D210": "港鐵屯門站 (輕鐵屯門站)",
+    "K51-D220": "聖公會聖西門呂明才中學",
+    "K51-D230": "景峰花園",
+    "K51-D240": "輕鐵鳳地站",
+    "K51-D250": "港鐵兆康站 (南) (輕鐵兆康站)",
+    "K51-D260": "彩暉花園",
+    "K51-D270": "嶺南大學",
+    "K51-D280": "倚嶺南庭",
+    "K51-D290": "富泰",
+    "K51-U010": "富泰",
+    "K51-U020": "聚康山莊",
+    "K51-U030": "嶺南大學",
+    "K51-U040": "彩暉花園",
+    "K51-U050": "港鐵兆康站 (南) (輕鐵兆康站)",
+    "K51-U060": "井財街",
+    "K51-U070": "雅都商場",
+    "K51-U080": "德政圍 (港鐵屯門站)",
+    "K51-U090": "屯門市中心 (輕鐵市中心站)",
+    "K51-U100": "屯門官立中學",
+    "K51-U110": "恒順園",
+    "K51-U120": "恒豐園",
+    "K51-U130": "三聖邨",
+    "K51-U140": "青山灣",
+    "K51-U150": "海景花園",
+    "K51-U160": "咖啡灣",
+    "K51-U170": "黃金泳灘",
+    "K51-U180": "香港黃金海岸",
+    "K51-U190": "嘉禾里村",
+    "K51-U200": "小秀村",
+    "K51-U210": "愛琴灣",
+    "K51-U220": "小欖新村",
+    "K51-U230": "小欖村",
+    "K51-U240": "小欖澄麗路",
+    "K51-U250": "大欖",
+    "K51A-D010": "掃管笏村",
+    "K51A-D020": "掃管笏 (鄭任安夫人千禧小學)",
+    "K51A-D030": "掃管笏路",
+    "K51A-D040": "管翠路8號",
+    "K51A-D050": "管翠路",
+    "K51A-D060": "愛琴海岸",
+    "K51A-D070": "香港黃金海岸",
+    "K51A-D080": "黃金泳灘",
+    "K51A-D090": "咖啡灣",
+    "K51A-D100": "碧翠花園",
+    "K51A-D110": "青山灣碼頭",
+    "K51A-D120": "三聖邨",
+    "K51A-D140": "胡陳金枝中學",
+    "K51A-D150": "青善遊樂場",
+    "K51A-D160": "置樂花園",
+    "K51A-D170": "屯門官立中學",
+    "K51A-D180": "輕鐵市中心站",
+    "K51A-D190": "港鐵屯門站 (輕鐵屯門站)",
+    "K51A-D200": "聖公會聖西門呂明才中學",
+    "K51A-D210": "景峰花園",
+    "K51A-D220": "輕鐵鳳地站",
+    "K51A-D230": "港鐵兆康站 (南) (輕鐵兆康站)",
+    "K51A-D240": "彩暉花園",
+    "K51A-D250": "嶺南大學",
+    "K51A-D260": "倚嶺南庭",
+    "K51A-D270": "富泰",
+    "K51A-U010": "富泰",
+    "K51A-U020": "聚康山莊",
+    "K51A-U030": "嶺南大學",
+    "K51A-U040": "彩暉花園",
+    "K51A-U050": "港鐵兆康站 (南) (輕鐵兆康站)",
+    "K51A-U060": "井財街",
+    "K51A-U070": "雅都商場",
+    "K51A-U080": "德政圍 (港鐵屯門站)",
+    "K51A-U090": "屯門市中心 (輕鐵市中心站)",
+    "K51A-U100": "屯門官立中學",
+    "K51A-U110": "恒順園",
+    "K51A-U120": "恒豐園",
+    "K51A-U130": "三聖邨",
+    "K51A-U140": "青山灣",
+    "K51A-U150": "海景花園",
+    "K51A-U160": "咖啡灣",
+    "K51A-U170": "黃金泳灘",
+    "K51A-U180": "香港黃金海岸",
+    "K51A-U190": "愛琴海岸",
+    "K51A-U200": "掃管笏變電站",
+    "K51A-U210": "掃管笏村",
+    "K51A-U220": "掃管笏 (鄭任安夫人千禧小學)",
+    "K51A-U230": "掃管笏路",
+    "K51A-U240": "管翠路8號",
+    "K51A-U250": "掃管笏村",
+    "K52-nD010": "龍鼓灘",
+    "K52-nD020": "沙埔崗127號",
+    "K52-nD030": "沙埔崗177號",
+    "K52-nD040": "沙埔崗288號",
+    "K52-nD050": "沙埔崗351號",
+    "K52-nD060": "中電 A廠",
+    "K52-nD070": "紹榮鋼鐵",
+    "K52-nD080": "環保園",
+    "K52-nD090": "內河碼頭",
+    "K52-nD100": "政府車場",
+    "K52-nD110": "望后石",
+    "K52-nD120": "蝴蝶灣公園",
+    "K52-nD130": "屯門公眾騎術學校",
+    "K52-nD140": "輕鐵蝴蝶站",
+    "K52-nD150": "輕鐵車廠站",
+    "K52-nD160": "輕鐵龍門站",
+    "K52-nD170": "輕鐵青雲站",
+    "K52-nD180": "輕鐵建安站",
+    "K52-nD190": "屯門站",
+    "K52-nD200": "屯門市中心",
+    "K52-nD210": "屯門官立中學",
+    "K52-nD220": "恒順園",
+    "K52-nD230": "恒豐園",
+    "K52-nD240": "輕鐵三聖站",
+    "K52-nD250": "屯門中央廣場",
+    "K52-nD260": "湖景邨湖翠樓",
+    "K52-nD270": "兆禧苑",
+    "K52-nD280": "海翠花園",
+    "K52-nD290": "邁亞美海灣",
+    "K52-nD300": "悅湖山莊",
+    "K52-nU010": "悅湖山莊",
+    "K52-nU020": "邁亞美海灣",
+    "K52-nU030": "屯門碼頭",
+    "K52-nU040": "湖景邨湖畔樓",
+    "K52-nU050": "湖景邨湖翠樓",
+    "K52-nU060": "屯門中央廣場",
+    "K52-nU070": "輕鐵三聖站",
+    "K52-nU080": "胡陳金枝中學",
+    "K52-nU090": "青善遊樂場",
+    "K52-nU100": "置樂花園",
+    "K52-nU110": "屯門官立中學",
+    "K52-nU120": "輕鐵市中心站",
+    "K52-nU140": "輕鐵屯門站 (港鐵屯門站)",
+    "K52-nU150": "輕鐵建安站",
+    "K52-nU160": "輕鐵青雲站",
+    "K52-nU170": "聖彼得堂",
+    "K52-nU180": "富健花園",
+    "K52-nU190": "新屯門中心",
+    "K52-nU200": "輕鐵蝴蝶站",
+    "K52-nU210": "屯門公眾騎術學校",
+    "K52-nU220": "蝴蝶灣公園",
+    "K52-nU230": "望后石",
+    "K52-nU240": "政府車場",
+    "K52-nU250": "內河碼頭",
+    "K52-nU260": "環保園",
+    "K52-nU270": "紹榮鋼鐵",
+    "K52-nU280": "沙埔崗312號",
+    "K52-nU290": "沙埔崗177號",
+    "K52-nU300": "沙埔崗127號",
+    "K52-nU310": "龍鼓灘",
+    "K52A-D010": "曾咀 (曾咀靈灰安置所)",
+    "K52A-D020": "沙埔崗127號",
+    "K52A-D030": "沙埔崗177號",
+    "K52A-D040": "沙埔崗288號",
+    "K52A-D050": "沙埔崗351號",
+    "K52A-D060": "中電 A廠",
+    "K52A-D070": "紹榮鋼鐵",
+    "K52A-D080": "環保園",
+    "K52A-D090": "內河碼頭",
+    "K52A-D100": "政府車場",
+    "K52A-D110": "望后石",
+    "K52A-D120": "蝴蝶灣公園",
+    "K52A-D130": "屯門公眾騎術學校",
+    "K52A-D140": "輕鐵蝴蝶站",
+    "K52A-D150": "輕鐵車廠站",
+    "K52A-D160": "輕鐵龍門站",
+    "K52A-D170": "輕鐵青雲站",
+    "K52A-D180": "輕鐵建安站",
+    "K52A-D190": "屯門站 (輕鐵屯門站)",
+    "K52A-U010": "屯門站 (輕鐵屯門站)",
+    "K52A-U015": "輕鐵屯門站 (請留意服務時間)*",
+    "K52A-U020": "輕鐵建安站",
+    "K52A-U030": "輕鐵青雲站",
+    "K52A-U040": "聖彼得堂",
+    "K52A-U050": "富健花園",
+    "K52A-U060": "新屯門中心",
+    "K52A-U070": "輕鐵蝴蝶站",
+    "K52A-U080": "屯門公眾騎術學校",
+    "K52A-U090": "蝴蝶灣公園",
+    "K52A-U100": "望后石",
+    "K52A-U110": "政府車場",
+    "K52A-U120": "內河碼頭",
+    "K52A-U130": "環保園",
+    "K52A-U140": "紹榮鋼鐵",
+    "K52A-U150": "沙埔崗312號",
+    "K52A-U160": "沙埔崗177號",
+    "K52A-U170": "沙埔崗127號",
+    "K52A-U180": "曾咀 (曾咀靈灰安置所)",
+    "K52P-D010": "龍鼓灘",
+    "K52P-D020": "沙埔崗127號",
+    "K52P-D030": "沙埔崗177號",
+    "K52P-D040": "沙埔崗288號",
+    "K52P-D050": "沙埔崗351號",
+    "K52P-D060": "中電 A廠",
+    "K52P-D070": "紹榮鋼鐵",
+    "K52P-D080": "環保園",
+    "K52P-D090": "內河碼頭",
+    "K52P-D100": "政府車場",
+    "K52P-D110": "望后石",
+    "K52P-D120": "蝴蝶灣公園",
+    "K52P-D130": "屯門公眾騎術學校",
+    "K52P-D140": "輕鐵蝴蝶站",
+    "K52P-D150": "悅湖山莊",
+    "K52P-D160": "邁亞美海灣",
+    "K52P-D170": "屯門碼頭",
+    "K52P-D180": "湖景邨湖畔樓",
+    "K52P-D190": "湖景邨湖翠樓",
+    "K52P-D200": "兆山苑",
+    "K52P-D210": "輕鐵車廠站",
+    "K52P-D220": "輕鐵龍門站",
+    "K52P-D230": "輕鐵青雲站",
+    "K52P-D240": "輕鐵建安站",
+    "K52P-D250": "屯門站",
+    "K53-D010": "掃管笏 (鄭任安夫人千禧小學)",
+    "K53-D015": "掃管笏路",
+    "K53-D020": "管翠路8號",
+    "K53-D030": "管翠路",
+    "K53-D040": "愛琴海岸",
+    "K53-D050": "香港黃金海岸",
+    "K53-D060": "黃金泳灘",
+    "K53-D070": "咖啡灣",
+    "K53-D080": "碧翠花園",
+    "K53-D090": "青山灣碼頭",
+    "K53-D100": "三聖邨",
+    "K53-D110": "恆福花園 (輕鐵三聖站)",
+    "K53-D120": "胡陳金枝中學",
+    "K53-D130": "青善遊樂場",
+    "K53-D140": "置樂花園",
+    "K53-D150": "屯門官立中學",
+    "K53-D160": "輕鐵市中心站",
+    "K53-U010": "屯門站 (輕鐵屯門站)",
+    "K53-U011": "屯門站 (輕鐵屯門站)",
+    "K53-U020": "屯門市中心",
+    "K53-U030": "屯門官立中學",
+    "K53-U040": "恒順園",
+    "K53-U050": "恒豐園",
+    "K53-U060": "三聖邨",
+    "K53-U070": "青山灣",
+    "K53-U080": "海景花園",
+    "K53-U090": "咖啡灣",
+    "K53-U100": "黃金泳灘",
+    "K53-U110": "香港黃金海岸",
+    "K53-U120": "愛琴海岸",
+    "K53-U130": "掃管笏變電站",
+    "K53-U140": "掃管笏村",
+    "K53S-U010": "屯門站",
+    "K53S-U020": "天后路",
+    "K53S-U030": "業旺邨",
+    "K53S-U040": "屯門站",
+    "K54-D010": "屯門市廣場",
+    "K54-D020": "新墟街市",
+    "K54-D030": "港鐵兆康站 (北) (輕鐵兆康站)",
+    "K54-D040": "兆康苑",
+    "K54-D050": "欣寶路公共運輸交匯處",
+    "K54-D060": "菁田邨",
+    "K54-D070": "和田邨",
+    "K54-U010": "和田邨",
+    "K54-U020": "菁田邨",
+    "K54-U030": "紫田村",
+    "K54-U040": "欣田邨",
+    "K54-U050": "港鐵兆康站 (北) (輕鐵兆康站)",
+    "K54-U060": "紅橋",
+    "K54-U070": "屯門市中心",
+    "K54A-D010": "港鐵兆康站 (北) (輕鐵兆康站)",
+    "K54A-D020": "兆康苑",
+    "K54A-D030": "欣寶路公共運輸交匯處",
+    "K54A-D040": "菁田邨",
+    "K54A-D050": "和田邨",
+    "K54A-U010": "和田邨",
+    "K54A-U020": "菁田邨",
+    "K54A-U030": "紫田村",
+    "K54A-U040": "欣田邨",
+    "K54A-U050": "港鐵兆康站 (北) (輕鐵兆康站)",
+    "K58-D001": "掃管笏村",
+    "K58-D002": "掃管笏  (鄭任安夫人千禧小學)",
+    "K58-D003": "掃管笏路",
+    "K58-D004": "管翠路8號",
+    "K58-D005": "管翠路",
+    "K58-D006": "愛琴海岸",
+    "K58-D007": "香港黃金海岸",
+    "K58-D008": "黃金泳灘",
+    "K58-D009": "咖啡灣",
+    "K58-D011": "碧翠花園",
+    "K58-D012": "青山灣碼頭",
+    "K58-D020": "三聖邨",
+    "K58-D030": "胡陳金枝中學",
+    "K58-D040": "青善遊樂場",
+    "K58-D050": "置樂花園",
+    "K58-D060": "屯門官立中學",
+    "K58-D070": "輕鐵市中心站",
+    "K58-D080": "輕鐵屯門站 (港鐵屯門站)",
+    "K58-D090": "輕鐵建安站",
+    "K58-D100": "輕鐵鳴琴站",
+    "K58-D110": "輕鐵石排站",
+    "K58-D120": "輕鐵新圍站",
+    "K58-D130": "輕鐵田景站",
+    "K58-D140": "青田遊樂場",
+    "K58-D150": "建生邨樂生樓",
+    "K58-D160": "建生邨泰生樓",
+    "K58-D170": "輕鐵麒麟站",
+    "K58-D180": "欣田邨",
+    "K58-D190": "港鐵兆康站 (南) (輕鐵兆康站)",
+    "K58-D193": "彩暉花園",
+    "K58-D196": "嶺南大學",
+    "K58-D200": "倚嶺南庭",
+    "K58-D210": "富泰",
+    "K58-U010": "富泰",
+    "K58-U020": "聚康山莊",
+    "K58-U023": "嶺南大學",
+    "K58-U026": "彩暉花園",
+    "K58-U030": "港鐵兆康站 (南) (輕鐵兆康站)",
+    "K58-U040": "兆康苑",
+    "K58-U050": "輕鐵麒麟站",
+    "K58-U060": "屯門醫院",
+    "K58-U070": "青松觀",
+    "K58-U080": "保良局莊啟程第二小學",
+    "K58-U090": "何壽基小學",
+    "K58-U100": "良景邨",
+    "K58-U110": "輕鐵新圍站",
+    "K58-U120": "輕鐵石排站",
+    "K58-U130": "輕鐵鳴琴站",
+    "K58-U140": "輕鐵建安站",
+    "K58-U150": "港鐵屯門站",
+    "K58-U160": "屯門市中心",
+    "K58-U170": "屯門官立中學",
+    "K58-U180": "恒順園",
+    "K58-U190": "恒豐園",
+    "K58-U200": "三聖邨",
+    "K58-U215": "青山灣",
+    "K58-U220": "海景花園",
+    "K58-U230": "咖啡灣",
+    "K58-U240": "黃金泳灘",
+    "K58-U250": "香港黃金海岸",
+    "K58-U260": "愛琴海岸",
+    "K58-U270": "掃管笏變電站",
+    "K58-U280": "掃管笏村",
+    "K58-U290": "掃管笏 (鄭任安夫人千禧小學)",
+    "K58-U300": "掃管笏路",
+    "K58-U310": "管翠路8號",
+    "K58-U320": "管翠路",
+    "K65-D010": "流浮山",
+    "K65-D020": "新慶村",
+    "K65-D030": "沙江圍",
+    "K65-D040": "鳳降村",
+    "K65-D050": "東頭村",
+    "K65-D060": "羅屋村",
+    "K65-D070": "錫降圍",
+    "K65-D080": "廈村",
+    "K65-D090": "沙洲里村",
+    "K65-D100": "天盛苑 (港鐵天水圍站)",
+    "K65-D110": "輕鐵坑尾村站",
+    "K65-D120": "坑尾村",
+    "K65-D130": "屏山屏興里",
+    "K65-D140": "輕鐵屏山站",
+    "K65-D150": "輕鐵水邊圍站",
+    "K65-D160": "元朗廣場",
+    "K65-D170": "開心廣場",
+    "K65-D180": "谷亭街",
+    "K65-D190": "元朗站 (輕鐵元朗站, 港鐵元朗站)",
+    "K65-U010": "元朗站 (輕鐵元朗站) (港鐵元朗站)",
+    "K65-U020": "又新街",
+    "K65-U030": "大棠路",
+    "K65-U040": "康樂路",
+    "K65-U050": "元朗警署",
+    "K65-U060": "輕鐵水邊圍站",
+    "K65-U070": "元朗公園",
+    "K65-U080": "朗邊",
+    "K65-U090": "屏山屏興里",
+    "K65-U100": "坑尾村",
+    "K65-U110": "輕鐵坑尾村站",
+    "K65-U120": "天盛苑 (港鐵天水圍站)",
+    "K65-U130": "石埗路",
+    "K65-U140": "沙洲里村",
+    "K65-U150": "廈村",
+    "K65-U160": "錫降圍",
+    "K65-U170": "羅屋村",
+    "K65-U180": "東頭村 (南)",
+    "K65-U190": "東頭村 (北)",
+    "K65-U200": "鳳降村",
+    "K65-U210": "沙江圍",
+    "K65-U220": "新慶村",
+    "K65-U230": "流浮山",
+    "K65A-D010": "流浮山",
+    "K65A-D020": "新慶村",
+    "K65A-D030": "沙江圍",
+    "K65A-D040": "鳳降村",
+    "K65A-D050": "東頭村",
+    "K65A-D060": "羅屋村",
+    "K65A-D070": "錫降圍",
+    "K65A-D080": "廈村",
+    "K65A-D090": "沙洲里村",
+    "K65A-D100": "天盛苑 (港鐵天水圍站)",
+    "K65A-D110": "天水圍站 (輕鐵天水圍站)",
+    "K65A-U010": "天水圍站 (輕鐵天水圍站)",
+    "K65A-U020": "天盛苑 (港鐵天水圍站)",
+    "K65A-U030": "石埗路",
+    "K65A-U040": "沙洲里村",
+    "K65A-U050": "廈村",
+    "K65A-U060": "錫降圍",
+    "K65A-U070": "羅屋村",
+    "K65A-U080": "東頭村 (南)",
+    "K65A-U090": "東頭村 (北)",
+    "K65A-U100": "鳳降村",
+    "K65A-U110": "沙江圍",
+    "K65A-U120": "新慶村",
+    "K65A-U130": "流浮山",
+    "K66-D010": "大棠黃泥墩村",
+    "K66-D020": "大棠山路",
+    "K66-D030": "大棠迴旋處",
+    "K66-D040": "華苑",
+    "K66-D050": "水蕉新村",
+    "K66-D060": "南坑排",
+    "K66-D070": "南坑村",
+    "K66-D080": "紅棗田村",
+    "K66-D090": "普盛圍",
+    "K66-D100": "崇正公立學校",
+    "K66-D110": "羅家園",
+    "K66-D120": "深涌村",
+    "K66-D130": "禮修村",
+    "K66-D140": "蝶翠峰",
+    "K66-D150": "恆香製餅廠",
+    "K66-D160": "富達廣場",
+    "K66-D170": "千色廣場",
+    "K66-D180": "安康路",
+    "K66-D190": "元朗大會堂 (輕鐵豐年路站)",
+    "K66-D200": "水邊圍邨康水樓",
+    "K66-D210": "朗屏邨悅屏樓 (港鐵朗屏站)",
+    "K66-D220": "惠州學校",
+    "K66-D230": "朗屏邨珠屏樓",
+    "K66-D240": "朗屏",
+    "K66-U010": "朗屏",
+    "K66-U020": "楊屋村",
+    "K66-U030": "屏昌徑 (港鐵朗屏站)",
+    "K66-U040": "元朗盲人安老院",
+    "K66-U050": "元朗大會堂 (輕鐵豐年路站)",
+    "K66-U060": "安康路",
+    "K66-U070": "元朗商業中心",
+    "K66-U080": "富達廣場",
+    "K66-U090": "蝶翠峰",
+    "K66-U100": "禮修村",
+    "K66-U110": "深涌村",
+    "K66-U120": "羅家園",
+    "K66-U130": "崇正公立學校",
+    "K66-U140": "崇正菜站",
+    "K66-U150": "老圍",
+    "K66-U160": "振華花園",
+    "K66-U170": "南坑排",
+    "K66-U180": "水蕉新村",
+    "K66-U190": "華苑",
+    "K66-U200": "大棠迴旋處",
+    "K66-U210": "大棠山路",
+    "K66-U220": "大棠黃泥墩村",
+    "K68-D010": "元朗公園",
+    "K68-D020": "御豪山莊",
+    "K68-D030": "藝典居",
+    "K68-D040": "御庭居",
+    "K68-D050": "元朗游泳池",
+    "K68-D060": "元朗大會堂",
+    "K68-D070": "元朗廣場 (輕鐵豐年路站)",
+    "K68-D080": "元朗安寧路",
+    "K68-D090": "大橋村 (港鐵朗屏站)",
+    "K68-D100": "惠州學校",
+    "K68-D110": "朗屏邨珠屏樓",
+    "K68-D120": "朗屏 (巴士總站)",
+    "K68-D130": "橫洲福慶村",
+    "K68-D140": "元朗紡織品",
+    "K68-D150": "大昌行食品加工及物流中心",
+    "K68-D160": "有生鉛水(熱浸鋅)",
+    "K68-D170": "余仁生中心",
+    "K68-D180": "元朗污水處理廠",
+    "K68-D190": "雀巢",
+    "K68-D200": "牛尾香港",
+    "K68-U010": "元朗工業邨",
+    "K68-U011": "元朗工業邨",
+    "K68-U020": "凸版資訊卡",
+    "K68-U030": "雀巢",
+    "K68-U040": "元朗污水處理廠",
+    "K68-U050": "位元堂藥業大廈",
+    "K68-U060": "東電化電子零件",
+    "K68-U070": "凸版印刷",
+    "K68-U080": "匯泉國際實業",
+    "K68-U090": "橫洲福慶村",
+    "K68-U100": "朗屏 (巴士總站)",
+    "K68-U110": "楊屋村",
+    "K68-U120": "屏昌徑 (港鐵朗屏站)",
+    "K68-U130": "元朗盲人安老院",
+    "K68-U140": "聿修堂 (輕鐵豐年路站)",
+    "K68-U150": "元朗劇院",
+    "K68-U160": "銀田花園",
+    "K68-U170": "南元朗官立小學",
+    "K73-D010": "元朗西 (輕鐵豐年路站)",
+    "K73-D020": "元朗安寧路",
+    "K73-D030": "大橋村 (港鐵朗屏站)",
+    "K73-D040": "惠州學校",
+    "K73-D050": "朗屏邨珠屏樓",
+    "K73-D070": "朗屏 (巴士總站)",
+    "K73-D080": "鳳池村",
+    "K73-D090": "輕鐵天慈站",
+    "K73-D100": "天水圍游泳池",
+    "K73-D110": "天龍路景湖居",
+    "K73-D120": "天葵路麗湖居",
+    "K73-D130": "天晴邨晴雲樓",
+    "K73-D140": "天富苑能富閣",
+    "K73-D150": "天澤邨",
+    "K73-D160": "天恆",
+    "K73-U010": "天恆",
+    "K73-U020": "天逸邨逸潭樓",
+    "K73-U025": "天恩",
+    "K73-U030": "天逸邨逸洋樓",
+    "K73-U040": "天晴邨晴碧樓",
+    "K73-U045": "天悅邨",
+    "K73-U050": "香港青年協會李兆基書院",
+    "K73-U060": "天葵路美湖居",
+    "K73-U070": "天城路景湖居",
+    "K73-U080": "天慈邨",
+    "K73-U090": "鳳池村",
+    "K73-U100": "朗屏 (巴士總站)",
+    "K73-U110": "元朗盲人安老院",
+    "K73-U120": "元朗西 (輕鐵豐年路站)",
+    "K74-D010": "東成里",
+    "K74-D020": "東華三院馬振玉中學(近朗善邨)",
+    "K74-D030": "大橋村 (港鐵朗屏站)",
+    "K74-D040": "惠州學校",
+    "K74-D050": "朗屏邨珠屏樓",
+    "K74-D060": "朗屏 (巴士總站)",
+    "K74-D070": "鳳池村",
+    "K74-D080": "輕鐵天慈站",
+    "K74-D090": "天水圍公園",
+    "K74-D100": "天華邨",
+    "K74-D110": "天悅邨",
+    "K74-U001": "天水圍市中心",
+    "K74-U002": "天水圍市中心",
+    "K74-U004": "天頌苑頌棋閣",
+    "K74-U007": "天頌苑",
+    "K74-U010": "天瑞",
+    "K74-U011": "天瑞",
+    "K74-U020": "天水圍公園",
+    "K74-U030": "天慈邨",
+    "K74-U040": "鳳池村",
+    "K74-U050": "朗屏 (巴士總站)",
+    "K74-U060": "元朗盲人安老院",
+    "K74-U070": "元朗廣場 (輕鐵豐年路站)",
+    "K74-U080": "開心廣場",
+    "K74-U090": "港鐵元朗站(朗日路)  (港鐵元朗站)",
+    "K74-U100": "博愛醫院",
+    "K75A-D010": "輕鐵洪水橋站",
+    "K75A-D020": "鄉事委員會",
+    "K75A-D030": "田心",
+    "K75A-D040": "新李屋村",
+    "K75A-D050": "新生村",
+    "K75A-D060": "李屋村",
+    "K75A-D070": "新屋村",
+    "K75A-D080": "廈村市",
+    "K75A-D090": "廈村",
+    "K75A-D100": "沙洲里村",
+    "K75A-D110": "天盛苑 (港鐵天水圍站)",
+    "K75A-U010": "天水圍站 (輕鐵天水圍站)",
+    "K75A-U011": "天水圍站 (輕鐵天水圍站)",
+    "K75A-U020": "天盛苑 (港鐵天水圍站)",
+    "K75A-U030": "石埗村",
+    "K75P-D010": "輕鐵洪水橋站",
+    "K75P-D020": "洪水橋巴士廠",
+    "K75P-D030": "洪福邨",
+    "K75P-D040": "石埗村",
+    "K75P-D050": "天盛苑 (港鐵天水圍站)",
+    "K75P-D060": "天水圍警署",
+    "K75P-D070": "賞湖居",
+    "K75P-D080": "天水圍公園",
+    "K75P-U010": "天瑞",
+    "K75P-U011": "天瑞",
+    "K75P-U020": "天水圍公園",
+    "K75P-U030": "天耀邨耀盛樓",
+    "K75P-U040": "輕鐵天耀站",
+    "K75P-U050": "天盛苑 (港鐵天水圍站)",
+    "K75P-U060": "石埗路",
+    "K75P-U070": "沙洲里村",
+    "K75P-U080": "廈村市",
+    "K75P-U090": "新屋村",
+    "K75P-U100": "李屋村",
+    "K75P-U110": "新生村",
+    "K75P-U120": "新李屋村",
+    "K75P-U130": "田心",
+    "K75P-U140": "鄉事委員會",
+    "K75S-D010": "洪福邨",
+    "K75S-D020": "石埗村",
+    "K75S-D030": "天盛苑",
+    "K75S-U010": "天水圍站",
+    "K75S-U011": "天水圍站",
+    "K75S-U020": "天盛苑",
+    "K75S-U030": "石埗村",
+    "K75S-U040": "洪水橋巴士廠",
+    "K76-D010": "天水圍站 (港鐵天水圍站)",
+    "K76-D020": "天恩邨",
+    "K76-D030": "天澤邨",
+    "K76-D040": "天恆",
+    "K76-U010": "天恆",
+    "K76-U020": "天逸邨逸潭樓",
+    "K76-U030": "天富苑欣富閣",
+    "K76-U040": "天盛苑 (港鐵天水圍站)",
+    "K76-U050": "天水圍站 (港鐵天水圍站)",
+    "K76S-D010": "天水圍站",
+    "K76S-D020": "天恩邨",
+    "K76S-D030": "天澤邨",
+    "K76S-D040": "輕鐵濕地公園站",
+    "K76S-D050": "濕地公園路(近天葵路)",
+    "K76S-U010": "濕地公園路(近天葵路)",
+    "K76S-U015": "輕鐵濕地公園站",
+    "K76S-U020": "天逸邨逸潭樓",
+    "K76S-U030": "天富苑欣富閣",
+    "K76S-U040": "天盛苑"
+  };
+
+
+  let rawKmbRoutes = [];
+  let searchIndex = [];
+  let selectedRoute = null;
+  let clockTimer = null;
+  let refreshIntervalSec = 12;
+  let secondsRemaining = refreshIntervalSec;
+  let isManualRefreshing = false;
+  let floatOpaqueTimer = null;
+  let isRoutesLoaded = false;
+  let displaySlotCount = 2;
+  let inFlight = false;
+  let liveAbort = null;
+  let activeRequestToken = 0;
+  let scrollDebounce = null;
+  let pendingVisibleRefresh = false;
+  let lastVisibleIds = new Set();
+  const gmbDetailCache = new Map();
+  const kmbStopNameCache = new Map();
+  const ctbStopNameCache = new Map();
+  const mtrStopNameCache = new Map(Object.entries(MTR_BUS_STOP_NAMES));
+
+  const routeInput = document.getElementById('routeInput');
+  const autocompleteList = document.getElementById('autocompleteList');
+  const slotCountSelect = document.getElementById('slotCountSelect');
+  const refreshIntervalSelect = document.getElementById('refreshIntervalSelect');
+  const floatRefreshBtn = document.getElementById('floatRefreshBtn');
+  const jointSwitchBtn = document.getElementById('jointSwitchBtn');
+
+  try {
+    const r = JSON.parse(localStorage.getItem(REFRESH_KEY) || '12');
+    if (r === 10 || r === 12 || r === 15) refreshIntervalSec = r;
+  } catch (e) {}
+  try {
+    const s = JSON.parse(localStorage.getItem(SLOT_KEY) || '2');
+    if (s === 1 || s === 2 || s === 3) displaySlotCount = s;
+  } catch (e) {}
+  secondsRemaining = refreshIntervalSec;
+  slotCountSelect.value = String(displaySlotCount);
+  refreshIntervalSelect.value = String(refreshIntervalSec);
+
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, (c) => {
+      if (c === '&') return '&' + 'amp;';
+      if (c === '<') return '&' + 'lt;';
+      if (c === '>') return '&' + 'gt;';
+      if (c === '"') return '&' + 'quot;';
+      return '&#39;';
+    });
+  }
+
+  function pageVisible() {
+    return document.visibilityState !== 'hidden';
+  }
+  function isAbortError(e) {
+    return !!(e && e.name === 'AbortError');
+  }
+  function abortLive() {
+    if (!liveAbort) return;
+    liveAbort.abort();
+    liveAbort = null;
+  }
+  function beginLive() {
+    abortLive();
+    liveAbort = new AbortController();
+    return liveAbort.signal;
+  }
+
+  async function fetchWithTimeout(url, init, useLive) {
+    const parent = useLive && liveAbort ? liveAbort.signal : null;
+    const timeoutCtl = new AbortController();
+    const t = setTimeout(() => timeoutCtl.abort(), FETCH_MS);
+    const onParent = () => timeoutCtl.abort();
+    if (parent) {
+      if (parent.aborted) {
+        clearTimeout(t);
+        const err = new Error('aborted');
+        err.name = 'AbortError';
+        throw err;
+      }
+      parent.addEventListener('abort', onParent, { once: true });
+    }
+    try {
+      const res = await fetch(url, Object.assign({ cache: 'no-store' }, init || {}, { signal: timeoutCtl.signal }));
+      if (!res.ok) throw new Error('HTTP ' + res.status + ' ' + url);
+      return await res.json();
+    } catch (e) {
+      if (e && e.name === 'AbortError') {
+        if (parent && parent.aborted) {
+          const err = new Error('aborted');
+          err.name = 'AbortError';
+          throw err;
+        }
+        const err = new Error('逾時');
+        err.name = 'TimeoutError';
+        throw err;
+      }
+      throw e;
+    } finally {
+      clearTimeout(t);
+      if (parent) parent.removeEventListener('abort', onParent);
+    }
+  }
+
+  function fetchJson(url, opts) {
+    return fetchWithTimeout(url, {}, !!(opts && opts.live));
+  }
+  function fetchJsonPost(url, body, opts) {
+    return fetchWithTimeout(url, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body || {})
+    }, !!(opts && opts.live));
+  }
+
+  async function mapPool(items, limit, worker) {
+    const results = new Array(items.length);
+    let cursor = 0;
+    async function run() {
+      while (cursor < items.length) {
+        const i = cursor++;
+        results[i] = await worker(items[i], i);
+      }
+    }
+    const n = Math.min(limit, items.length);
+    if (n <= 0) return results;
+    await Promise.all(Array.from({ length: n }, run));
+    return results;
+  }
+
+  function formatCountdown(sec) {
+    return String(Math.max(0, sec)).padStart(2, '0');
+  }
+  function setCountdownDisplay(sec) {
+    const formatted = formatCountdown(sec);
+    const el = document.getElementById('countdownTimer');
+    if (el) el.textContent = formatted;
+    if (floatRefreshBtn && !floatRefreshBtn.classList.contains('is-opaque')) {
+      floatRefreshBtn.textContent = '刷新[' + formatted + ']';
+    }
+  }
+  function stopClock() {
+    if (clockTimer) {
+      clearInterval(clockTimer);
+      clockTimer = null;
+    }
+  }
+  function startClock() {
+    if (!pageVisible() || !selectedRoute) {
+      stopClock();
+      return;
+    }
+    secondsRemaining = refreshIntervalSec;
+    setCountdownDisplay(secondsRemaining);
+    stopClock();
+    clockTimer = setInterval(() => {
+      if (!pageVisible()) {
+        stopClock();
+        return;
+      }
+      secondsRemaining -= 1;
+      if (secondsRemaining <= 0) {
+        if (inFlight) {
+          secondsRemaining = 0;
+        } else if (selectedRoute) {
+          secondsRemaining = refreshIntervalSec;
+          fetchAndDisplayETA(selectedRoute, { silent: true, visibleOnly: true });
+        } else {
+          secondsRemaining = refreshIntervalSec;
+        }
+      }
+      setCountdownDisplay(secondsRemaining);
+    }, 1000);
+  }
+
+  function isNearViewport(el) {
+    const r = el.getBoundingClientRect();
+    return r.bottom >= -VIEW_MARGIN && r.top <= (window.innerHeight || 0) + VIEW_MARGIN;
+  }
+  function visibleStopEls() {
+    return Array.from(document.querySelectorAll('#results .stop-item[data-op]')).filter(isNearViewport);
+  }
+  function rememberVisibleStops(items) {
+    const list = items || visibleStopEls();
+    lastVisibleIds = new Set(list.map((el) => el.id).filter(Boolean));
+  }
+  function scheduleNewlyVisibleRefresh() {
+    if (scrollDebounce) clearTimeout(scrollDebounce);
+    scrollDebounce = setTimeout(() => {
+      scrollDebounce = null;
+      refreshNewlyVisibleStops();
+    }, SCROLL_DEBOUNCE_MS);
+  }
+  async function refreshNewlyVisibleStops() {
+    if (!selectedRoute || !pageVisible() || isManualRefreshing) return;
+    if (selectedRoute.type === 'MTRB') {
+      rememberVisibleStops();
+      return;
+    }
+    if (inFlight) {
+      pendingVisibleRefresh = true;
+      return;
+    }
+    const items = visibleStopEls();
+    const newly = items.filter((el) => el.id && !lastVisibleIds.has(el.id));
+    rememberVisibleStops(items);
+    if (!newly.length) return;
+    const token = ++activeRequestToken;
+    if (!liveAbort || liveAbort.signal.aborted) beginLive();
+    inFlight = true;
+    try {
+      await refreshVisibleStops(token, newly);
+    } catch (e) {
+      if (!isAbortError(e)) console.error(e);
+    } finally {
+      if (token === activeRequestToken) {
+        inFlight = false;
+        rememberVisibleStops();
+        if (pendingVisibleRefresh) {
+          pendingVisibleRefresh = false;
+          scheduleNewlyVisibleRefresh();
+        }
+      }
+    }
+  }
+
+  function flashFloat(text) {
+    if (!floatRefreshBtn || floatRefreshBtn.style.display === 'none') return;
+    floatRefreshBtn.classList.add('is-opaque');
+    floatRefreshBtn.textContent = text;
+    if (floatOpaqueTimer) clearTimeout(floatOpaqueTimer);
+    floatOpaqueTimer = setTimeout(() => {
+      floatRefreshBtn.classList.remove('is-opaque');
+      floatRefreshBtn.blur();
+      floatOpaqueTimer = null;
+      setCountdownDisplay(secondsRemaining);
+    }, 2000);
+  }
+
+  async function initRoutes() {
+    const statusHint = document.getElementById('initStatus');
+    const regions = ['HKI', 'KLN', 'NT'];
+
+    const kmbTask = fetchJson(API.KMB_ROUTES)
+      .then(data => data.data || [])
+      .catch(e => {
+        console.error('九巴資料載入失敗', e);
+        return [];
+      });
+
+    const ctbTask = fetchJson(API.CTB_ROUTES)
+      .then(data => (data.data || []).map(r => ({
+        type: 'CTB',
+        company: '城巴',
+        route: r.route,
+        orig: r.orig_tc,
+        dest: r.dest_tc
+      })))
+      .catch(e => {
+        console.error('城巴資料載入失敗', e);
+        return [];
+      });
+
+    const nlbTask = fetchJson(API.NLB_ROUTE_LIST)
+      .then(data => (data.routes || []).map(r => ({
+        type: 'NLB',
+        company: '嶼巴',
+        route: String(r.routeNo),
+        routeId: r.routeId,
+        origDest: r.routeName_c || r.routeName_e,
+        overnight: r.overnightRoute,
+        special: r.specialRoute
+      })))
+      .catch(e => {
+        console.error('嶼巴資料載入失敗', e);
+        return [];
+      });
+
+    const mtrTask = Promise.resolve(
+      MTR_BUS_ROUTE_SEED.map(r => ({
+        type: 'MTRB',
+        company: '港鐵巴士',
+        route: r.route,
+        origDest: r.origDest,
+        circular: /循環/.test(r.origDest)
+      }))
+    );
+
+    const gmbTasks = regions.map(region =>
+      fetchJson(API.GMB_ROUTES + '/' + region)
+        .then(data => {
+          const codes = data?.data?.routes;
+          if (!Array.isArray(codes)) return [];
+          return codes.map(code => ({
+            type: 'GMB',
+            company: '綠色小巴',
+            region,
+            route: String(code),
+            description: ''
+          }));
+        })
+        .catch(e => {
+          console.warn('綠色小巴 (' + region + ') 載入失敗', e);
+          return [];
+        })
+    );
+
+    try {
+      const [kmbData, ctbRoutes, nlbRoutes, mtrRoutes, ...gmbRegionResults] = await Promise.all([
+        kmbTask, ctbTask, nlbTask, mtrTask, ...gmbTasks
+      ]);
+      rawKmbRoutes = kmbData;
+      const gmbRoutes = gmbRegionResults.flat();
+
+      const kmbGrouped = {};
+      rawKmbRoutes.forEach(r => {
+        if (!kmbGrouped[r.route]) kmbGrouped[r.route] = [];
+        kmbGrouped[r.route].push(r);
+      });
+
+      const kmbUniqueList = Object.entries(kmbGrouped).map(([route, variants]) => {
+        const main = variants.find(v => String(v.service_type) === '1' && v.bound === 'O')
+          || variants.find(v => String(v.service_type) === '1')
+          || variants[0];
+        return {
+          type: 'KMB',
+          company: '九巴/龍運',
+          route,
+          orig: main.orig_tc,
+          dest: main.dest_tc,
+          variants
+        };
+      });
+
+      searchIndex = [...kmbUniqueList, ...ctbRoutes, ...nlbRoutes, ...mtrRoutes, ...gmbRoutes];
+      isRoutesLoaded = true;
+      statusHint.innerHTML = '✅ 資料載入完成！九巴/龍運 <strong>' + kmbUniqueList.length +
+        '</strong>、城巴 <strong>' + ctbRoutes.length +
+        '</strong>、嶼巴 <strong>' + nlbRoutes.length +
+        '</strong>、港鐵巴士 <strong>' + mtrRoutes.length +
+        '</strong>、綠色小巴編號 <strong>' + gmbRoutes.length +
+        '</strong>。選線後才抓車站與 ETA。';
+      statusHint.style.color = '#27ae60';
+      handleSearch();
+    } catch (e) {
+      console.error('路線資料初始化失敗', e);
+      statusHint.textContent = '⚠️ 路線資料初始化失敗，請檢查網路連線或重新整理網頁。';
+      statusHint.style.color = '#e60012';
+    }
+  }
+
+  function sortMatches(filtered, query) {
+    return filtered.sort((a, b) => {
+      const routeA = a.route.toUpperCase();
+      const routeB = b.route.toUpperCase();
+      const exactA = routeA === query;
+      const exactB = routeB === query;
+      if (exactA && !exactB) return -1;
+      if (!exactA && exactB) return 1;
+      const startsA = routeA.startsWith(query);
+      const startsB = routeB.startsWith(query);
+      if (startsA && !startsB) return -1;
+      if (!startsA && startsB) return 1;
+      if (a.type !== b.type) return (TYPE_ORDER[a.type] ?? 9) - (TYPE_ORDER[b.type] ?? 9);
+      if (routeA.length !== routeB.length) return routeA.length - routeB.length;
+      if (a.type === 'NLB') {
+        return String(a.routeId).localeCompare(String(b.routeId), undefined, { numeric: true });
+      }
+      if (a.type === 'GMB') {
+        if (a.region !== b.region) return String(a.region).localeCompare(String(b.region));
+        return String(a.gmbRouteId || '').localeCompare(String(b.gmbRouteId || ''), undefined, { numeric: true });
+      }
+      return routeA.localeCompare(routeB);
+    });
+  }
+
+  function routeLabel(item) {
+    if (item.type === 'KMB' || item.type === 'CTB') {
+      return item.route + '（' + (item.orig || '?') + ' ↔ ' + (item.dest || '?') + '）';
+    }
+    if (item.type === 'NLB') {
+      return item.route + '（' + (item.origDest || '嶼巴') + '）';
+    }
+    if (item.type === 'MTRB') {
+      return item.route + '（' + (item.origDest || '港鐵巴士') + '）';
+    }
+    const region = REGION_LABEL[item.region] || item.region;
+    if (item.detailSummary) return item.route + ' · ' + region + '（' + item.detailSummary + '）';
+    return item.route + ' · ' + region + '專線小巴';
+  }
+
+  function renderAutocomplete(filtered) {
+    autocompleteList.textContent = '';
+    if (!filtered.length) {
+      autocompleteList.style.display = 'none';
+      return;
+    }
+    filtered.slice(0, 80).forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'autocomplete-item';
+      const left = document.createElement('span');
+      const strong = document.createElement('strong');
+      strong.textContent = item.route;
+      const small = document.createElement('small');
+      small.style.color = '#666';
+      small.style.marginLeft = '8px';
+      small.textContent = routeLabel(item);
+      left.appendChild(strong);
+      left.appendChild(small);
+      const badge = document.createElement('span');
+      badge.className = 'badge ' + (BADGE_CLASS[item.type] || 'badge-kmb');
+      badge.textContent = item.company;
+      div.appendChild(left);
+      div.appendChild(badge);
+      div.addEventListener('click', () => {
+        routeInput.value = item.route;
+        autocompleteList.style.display = 'none';
+        selectRoute(item);
+      });
+      autocompleteList.appendChild(div);
+    });
+    autocompleteList.style.display = 'block';
+  }
+
+  function expandGmbByRouteId(baseItem, details) {
+    if (!details?.length) {
+      return [{ ...baseItem, detailSummary: baseItem.detailSummary || '' }];
+    }
+    return details.map((d) => {
+      const dir = d.directions?.[0];
+      const summary = dir
+        ? (dir.orig_tc || '?') + ' ↔ ' + (dir.dest_tc || '?')
+        : (d.description_tc || '');
+      return {
+        ...baseItem,
+        gmbRouteId: d.route_id,
+        description: d.description_tc || '',
+        detailSummary: [summary, d.description_tc].filter(Boolean).filter((v, i, arr) => arr.indexOf(v) === i).join('　')
+      };
+    });
+  }
+
+  async function enrichGmbMatches(matches) {
+    const targets = matches.filter(m => m.type === 'GMB' && m.gmbRouteId == null).slice(0, 12);
+    await mapPool(targets, 4, async (item) => {
+      try {
+        const details = await loadGmbRouteDetails(item.region, item.route);
+        const expanded = expandGmbByRouteId(item, details);
+        const idx = searchIndex.findIndex(r =>
+          r.type === 'GMB' && r.region === item.region && r.route === item.route && r.gmbRouteId == null
+        );
+        if (idx >= 0) searchIndex.splice(idx, 1, ...expanded);
+        else expanded.forEach(row => {
+          if (!searchIndex.some(r => r.type === 'GMB' && r.region === row.region && r.route === row.route && r.gmbRouteId === row.gmbRouteId)) {
+            searchIndex.push(row);
+          }
+        });
+      } catch (e) {
+        if (isAbortError(e)) throw e;
+        console.warn('GMB 詳情預載失敗', item, e);
+      }
+    });
+  }
+
+  async function handleSearch() {
+    const query = routeInput.value.trim().toUpperCase();
+    if (!query || !isRoutesLoaded) {
+      autocompleteList.style.display = 'none';
+      return;
+    }
+    const matchQuery = (q) => sortMatches(
+      searchIndex.filter(r => r.route.toUpperCase().includes(q)),
+      q
+    );
+    let filtered = matchQuery(query);
+    renderAutocomplete(filtered);
+    if (filtered.some(x => x.type === 'GMB' && x.gmbRouteId == null)) {
+      await enrichGmbMatches(filtered);
+      if (routeInput.value.trim().toUpperCase() !== query) return;
+      filtered = matchQuery(query);
+      renderAutocomplete(filtered);
+    }
+  }
+
+  async function loadGmbRouteDetails(region, route) {
+    const key = region + ':' + route;
+    if (gmbDetailCache.has(key)) return gmbDetailCache.get(key);
+    const data = await fetchJson(API.GMB_ROUTES + '/' + region + '/' + encodeURIComponent(route));
+    const details = Array.isArray(data.data) ? data.data : [];
+    gmbDetailCache.set(key, details);
+    return details;
+  }
+
+  function isCtbKmbJoint(routeNo) {
+    const code = String(routeNo || '').toUpperCase();
+    const ctb = searchIndex.some(r => r.type === 'CTB' && String(r.route).toUpperCase() === code);
+    const kmb = searchIndex.some(r => r.type === 'KMB' && String(r.route).toUpperCase() === code);
+    return ctb && kmb;
+  }
+
+  function findJointOther(item) {
+    if (!item || (item.type !== 'KMB' && item.type !== 'CTB')) return null;
+    const want = item.type === 'KMB' ? 'CTB' : 'KMB';
+    const code = String(item.route).toUpperCase();
+    return searchIndex.find(r => r.type === want && String(r.route).toUpperCase() === code) || null;
+  }
+
+  function updateJointSwitch(routeItem) {
+    const other = findJointOther(routeItem);
+    if (!other) {
+      jointSwitchBtn.hidden = true;
+      jointSwitchBtn.onclick = null;
+      return;
+    }
+    jointSwitchBtn.hidden = false;
+    jointSwitchBtn.textContent = other.type === 'KMB' ? '改看九巴／龍運班次' : '改看城巴班次';
+    jointSwitchBtn.onclick = () => selectRoute(other);
+  }
+
+  function selectRoute(routeItem) {
+    selectedRoute = routeItem;
+    const statusBar = document.getElementById('statusBar');
+    const activeRouteName = document.getElementById('activeRouteName');
+    statusBar.style.display = 'flex';
+    let extra = '';
+    if (routeItem.type === 'GMB') {
+      extra = '（' + (REGION_LABEL[routeItem.region] || routeItem.region) +
+        (routeItem.detailSummary ? '　' + routeItem.detailSummary : '') + '）';
+    }
+    if (routeItem.type === 'NLB' && routeItem.origDest) extra = '（' + routeItem.origDest + '）';
+    if (routeItem.type === 'MTRB' && routeItem.origDest) extra = '（' + routeItem.origDest + '）';
+    activeRouteName.textContent = routeItem.company + ' - ' + routeItem.route + extra;
+    updateJointSwitch(routeItem);
+    if (floatRefreshBtn) floatRefreshBtn.style.display = 'inline-flex';
+    lastVisibleIds = new Set();
+    pendingVisibleRefresh = false;
+    if (scrollDebounce) {
+      clearTimeout(scrollDebounce);
+      scrollDebounce = null;
+    }
+    fetchAndDisplayETA(selectedRoute, { silent: false, visibleOnly: false });
+    startClock();
+  }
+
+  async function fetchAndDisplayETA(routeInfo, opts) {
+    opts = opts || {};
+    const silent = !!opts.silent;
+    const visibleOnly = !!opts.visibleOnly;
+    if (!routeInfo) return false;
+    if (visibleOnly && inFlight) return null;
+    if (!pageVisible() && visibleOnly) return null;
+
+    const token = ++activeRequestToken;
+    if (!visibleOnly) beginLive();
+    else if (!liveAbort || liveAbort.signal.aborted) beginLive();
+
+    inFlight = true;
+    const resultsContainer = document.getElementById('results');
+    if (!silent && token === activeRequestToken) {
+      resultsContainer.innerHTML = '<div class="loading">正在實時查詢車站及到站時間 (ETA)...</div>';
+    }
+    try {
+      if (visibleOnly) {
+        if (routeInfo.type === 'MTRB') await loadMtrBusRouteData(routeInfo, true, token);
+        else await refreshVisibleStops(token);
+      } else if (routeInfo.type === 'KMB') {
+        await loadKmbRouteData(routeInfo, silent, token);
+      } else if (routeInfo.type === 'GMB') {
+        await loadGmbRouteData(routeInfo, silent, token);
+      } else if (routeInfo.type === 'CTB') {
+        await loadCtbRouteData(routeInfo, silent, token);
+      } else if (routeInfo.type === 'NLB') {
+        await loadNlbRouteData(routeInfo, silent, token);
+      } else if (routeInfo.type === 'MTRB') {
+        await loadMtrBusRouteData(routeInfo, silent, token);
+      }
+      if (token !== activeRequestToken) return null;
+      secondsRemaining = refreshIntervalSec;
+      setCountdownDisplay(secondsRemaining);
+      return true;
+    } catch (e) {
+      if (isAbortError(e) || token !== activeRequestToken) return null;
+      console.error(e);
+      if (!silent && token === activeRequestToken) {
+        resultsContainer.innerHTML = '<div class="loading">資料載入失敗，請稍後再試。</div>';
+      }
+      return false;
+    } finally {
+      if (token === activeRequestToken) {
+        inFlight = false;
+        rememberVisibleStops();
+        if (pendingVisibleRefresh) {
+          pendingVisibleRefresh = false;
+          scheduleNewlyVisibleRefresh();
+        }
+      }
+    }
+  }
+
+  function kmbDirPath(bound) {
+    return bound === 'I' ? 'inbound' : 'outbound';
+  }
+  function kmbDirCode(pathOrBound) {
+    if (pathOrBound === 'inbound' || pathOrBound === 'I') return 'I';
+    return 'O';
+  }
+
+  function applyKmbEta(stopItem, etaData, job, seq) {
+    const wantDir = kmbDirCode(job.bound);
+    const wantSt = String(job.serviceType);
+    const rawEtas = (etaData.data || []).filter(e => {
+      const sameDir = e.dir === wantDir;
+      const sameSt = e.service_type == null || String(e.service_type) === wantSt;
+      const sameSeq = e.seq == null || String(e.seq) === String(seq);
+      return sameDir && sameSt && sameSeq;
+    });
+    rawEtas.sort((a, b) => (a.eta_seq || 0) - (b.eta_seq || 0));
+    setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots(rawEtas.map(normalizeKmbEta)));
+  }
+
+  async function loadKmbRouteData(routeInfo, isSilentRefresh, token) {
+    const resultsContainer = document.getElementById('results');
+    const variants = rawKmbRoutes.filter(r => r.route === routeInfo.route);
+    const jobs = variants.map(variant => ({
+      route: variant.route,
+      bound: variant.bound,
+      serviceType: String(variant.service_type),
+      orig: variant.orig_tc,
+      dest: variant.dest_tc
+    })).sort((a, b) => {
+      const specialA = a.serviceType === '1' ? 0 : 1;
+      const specialB = b.serviceType === '1' ? 0 : 1;
+      if (specialA !== specialB) return specialA - specialB;
+      const boundA = a.bound === 'I' ? 1 : 0;
+      const boundB = b.bound === 'I' ? 1 : 0;
+      if (boundA !== boundB) return boundA - boundB;
+      return a.serviceType.localeCompare(b.serviceType, undefined, { numeric: true });
+    });
+
+    if (!isSilentRefresh && token === activeRequestToken) resultsContainer.innerHTML = '';
+    const joint = isCtbKmbJoint(routeInfo.route);
+
+    for (const job of jobs) {
+      if (token !== activeRequestToken) return;
+      const dirPath = kmbDirPath(job.bound);
+      const containerId = 'kmb-card-' + job.route + '-' + dirPath + '-' + job.serviceType;
+      const isSpecial = job.serviceType !== '1';
+      const specialSuffix = isSpecial ? '[特別班次]' : '';
+      const dirWord = job.bound === 'I' ? '回程' : '去程';
+
+      try {
+        const data = await fetchJson(API.KMB_ROUTE_STOPS + job.route + '/' + dirPath + '/' + job.serviceType, { live: true });
+        const stops = (data.data || []).slice().sort((a, b) => Number(a.seq) - Number(b.seq));
+        if (!stops.length) continue;
+
+        let card = document.getElementById(containerId);
+        if (!card) {
+          card = document.createElement('div');
+          card.id = containerId;
+          card.className = 'dir-card';
+          const jointNote = joint ? '　聯營線只顯示九巴／龍運班次' : '';
+          card.innerHTML = '<div class="dir-title">' + esc(dirWord + '：' + (job.orig || '') + ' ➔ ' + (job.dest || '') + specialSuffix) +
+            '<span class="dir-sub">' + esc('九巴/龍運 ' + job.route + jointNote) + '</span></div><ul class="stop-list"></ul>';
+          resultsContainer.appendChild(card);
+        }
+
+        const stopListEl = card.querySelector('.stop-list');
+        stops.forEach((stopRef) => {
+          const stopItemId = 'kmb-stop-' + containerId + '-' + stopRef.seq + '-' + stopRef.stop;
+          if (document.getElementById(stopItemId)) return;
+          const stopItem = document.createElement('li');
+          stopItem.id = stopItemId;
+          stopItem.className = 'stop-item';
+          stopItem.setAttribute('data-op', 'KMB');
+          stopItem.setAttribute('data-stop', String(stopRef.stop));
+          stopItem.setAttribute('data-route', String(job.route));
+          stopItem.setAttribute('data-st', String(job.serviceType));
+          stopItem.setAttribute('data-bound', String(job.bound));
+          stopItem.setAttribute('data-seq', String(stopRef.seq));
+          stopItem.innerHTML = '<span class="stop-name">' + esc(String(stopRef.seq)) + '. 載入中...</span><div class="eta-box">...</div>';
+          stopListEl.appendChild(stopItem);
+        });
+        await mapPool(stops, 6, async (stopRef) => {
+          if (token !== activeRequestToken) return;
+          const stopItemId = 'kmb-stop-' + containerId + '-' + stopRef.seq + '-' + stopRef.stop;
+          const stopItem = document.getElementById(stopItemId);
+          if (!stopItem) return;
+          try {
+            const stopName = await getKmbStopName(stopRef.stop);
+            const etaData = await fetchJson(API.KMB_ETA + stopRef.stop + '/' + job.route + '/' + job.serviceType, { live: true });
+            stopItem.querySelector('.stop-name').textContent = stopRef.seq + '. ' + stopName;
+            applyKmbEta(stopItem, etaData, job, stopRef.seq);
+          } catch (err) {
+            if (isAbortError(err)) throw err;
+            console.error('KMB stop/eta error', err);
+            setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots([], { error: true }));
+          }
+        });
+      } catch (err) {
+        if (isAbortError(err)) throw err;
+        console.error('KMB route-stop error', err);
+      }
+    }
+  }
+
+  async function getKmbStopName(stopId) {
+    if (kmbStopNameCache.has(stopId)) return kmbStopNameCache.get(stopId);
+    try {
+      const stopData = await fetchJson(API.KMB_STOP + stopId, { live: true });
+      const name = stopData.data?.name_tc || '未知車站';
+      kmbStopNameCache.set(stopId, name);
+      return name;
+    } catch (e) {
+      if (isAbortError(e)) throw e;
+      return '未知車站';
+    }
+  }
+
+  function normalizeKmbEta(row) {
+    if (!row) return null;
+    return {
+      eta: row.eta || null,
+      remark: row.rmk_tc || row.rmk_en || ''
+    };
+  }
+
+  async function loadGmbRouteData(routeInfo, isSilentRefresh, token) {
+    const resultsContainer = document.getElementById('results');
+    const details = await loadGmbRouteDetails(routeInfo.region, routeInfo.route);
+
+    if (!details.length) {
+      if (!isSilentRefresh && token === activeRequestToken) {
+        resultsContainer.innerHTML = '<div class="loading">未有發現該小巴路線資料（請確認區域與編號）。</div>';
+      }
+      return;
+    }
+
+    if (!isSilentRefresh && token === activeRequestToken) resultsContainer.innerHTML = '';
+
+    const gmbJobs = [];
+    details.forEach((variant, variantIdx) => {
+      if (routeInfo.gmbRouteId != null && String(variant.route_id) !== String(routeInfo.gmbRouteId)) return;
+      const desc = (variant.description_tc || '') + ' ' + (variant.remarks_tc || '');
+      const variantIsSpecial = /特別/.test(desc) || variantIdx > 0;
+      (variant.directions || []).forEach(dir => {
+        const dirText = desc + ' ' + (dir.remarks_tc || '');
+        gmbJobs.push({
+          variant,
+          dir,
+          isSpecial: variantIsSpecial || /特別/.test(dirText),
+          routeSeq: Number(dir.route_seq) || 0
+        });
+      });
+    });
+    gmbJobs.sort((a, b) => {
+      if (a.isSpecial !== b.isSpecial) return a.isSpecial ? 1 : -1;
+      if (a.routeSeq !== b.routeSeq) return a.routeSeq - b.routeSeq;
+      return String(a.variant.route_id).localeCompare(String(b.variant.route_id), undefined, { numeric: true });
+    });
+
+    for (const job of gmbJobs) {
+      const variant = job.variant;
+      const dir = job.dir;
+      if (token !== activeRequestToken) return;
+      const dirKey = 'gmb-' + variant.route_id + '-' + dir.route_seq;
+      const title = (dir.orig_tc || '') + ' ➔ ' + (dir.dest_tc || '');
+      const sub = [
+        REGION_LABEL[variant.region] || variant.region,
+        variant.description_tc || '',
+        dir.remarks_tc || ''
+      ].filter(Boolean).join('　');
+
+      try {
+        const data = await fetchJson(API.GMB_ROUTE_STOPS + variant.route_id + '/' + dir.route_seq, { live: true });
+        const stops = (data?.data?.route_stops || []).slice().sort((a, b) => Number(a.stop_seq) - Number(b.stop_seq));
+        if (!stops.length) continue;
+
+        let card = document.getElementById(dirKey);
+        if (!card) {
+          card = document.createElement('div');
+          card.id = dirKey;
+          card.className = 'dir-card';
+          card.innerHTML = '<div class="dir-title">' + esc(title) + '<span class="dir-sub">' + esc(sub) + '</span></div><ul class="stop-list"></ul>';
+          resultsContainer.appendChild(card);
+        }
+
+        const stopListEl = card.querySelector('.stop-list');
+        stops.forEach((stop) => {
+          const stopItemId = 'gmb-stop-' + variant.route_id + '-' + dir.route_seq + '-' + stop.stop_seq;
+          if (document.getElementById(stopItemId)) return;
+          const stopItem = document.createElement('li');
+          stopItem.id = stopItemId;
+          stopItem.className = 'stop-item';
+          stopItem.setAttribute('data-op', 'GMB');
+          stopItem.setAttribute('data-route-id', String(variant.route_id));
+          stopItem.setAttribute('data-route-seq', String(dir.route_seq));
+          stopItem.setAttribute('data-stop-seq', String(stop.stop_seq));
+          stopItem.innerHTML = '<span class="stop-name">' + esc(String(stop.stop_seq)) + '. ' +
+            esc(stop.name_tc || '未知車站') + '</span><div class="eta-box">載入中...</div>';
+          stopListEl.appendChild(stopItem);
+        });
+        await mapPool(stops, 6, async (stop) => {
+          if (token !== activeRequestToken) return;
+          const stopItemId = 'gmb-stop-' + variant.route_id + '-' + dir.route_seq + '-' + stop.stop_seq;
+          const stopItem = document.getElementById(stopItemId);
+          if (!stopItem) return;
+          try {
+            const etaData = await fetchJson(API.GMB_ETA + variant.route_id + '/' + dir.route_seq + '/' + stop.stop_seq, { live: true });
+            const rawEtas = (etaData?.data?.eta || []).map(normalizeGmbEta).filter(Boolean);
+            setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots(rawEtas));
+          } catch (e) {
+            if (isAbortError(e)) throw e;
+            setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots([], { error: true }));
+          }
+        });
+      } catch (e) {
+        if (isAbortError(e)) throw e;
+        console.error('GMB route-stop error', e);
+      }
+    }
+  }
+
+  function normalizeGmbEta(e) {
+    if (!e) return null;
+    return {
+      eta: e.timestamp || e.eta || null,
+      remark: e.remarks_tc || e.rmk_tc || e.remarks_en || ''
+    };
+  }
+
+  async function getCtbStopName(stopId) {
+    if (ctbStopNameCache.has(stopId)) return ctbStopNameCache.get(stopId);
+    try {
+      const stopData = await fetchJson(API.CTB_STOP + stopId, { live: true });
+      const name = stopData.data?.name_tc || '未知車站';
+      ctbStopNameCache.set(stopId, name);
+      return name;
+    } catch (e) {
+      if (isAbortError(e)) throw e;
+      return '未知車站';
+    }
+  }
+
+  async function loadCtbRouteData(routeInfo, isSilentRefresh, token) {
+    const resultsContainer = document.getElementById('results');
+    if (!isSilentRefresh && token === activeRequestToken) resultsContainer.innerHTML = '';
+    const joint = isCtbKmbJoint(routeInfo.route);
+    const directions = [
+      { path: 'outbound', code: 'O', word: '去程', orig: routeInfo.orig, dest: routeInfo.dest },
+      { path: 'inbound', code: 'I', word: '回程', orig: routeInfo.dest, dest: routeInfo.orig }
+    ];
+    for (const dir of directions) {
+      if (token !== activeRequestToken) return;
+      const containerId = 'ctb-card-' + routeInfo.route + '-' + dir.path;
+      try {
+        const data = await fetchJson(API.CTB_ROUTE_STOPS + encodeURIComponent(routeInfo.route) + '/' + dir.path, { live: true });
+        const stops = (data.data || []).slice().sort((a, b) => Number(a.seq) - Number(b.seq));
+        if (!stops.length) continue;
+        let card = document.getElementById(containerId);
+        if (!card) {
+          card = document.createElement('div');
+          card.id = containerId;
+          card.className = 'dir-card';
+          const jointNote = joint ? '　聯營線只顯示城巴班次' : '';
+          card.innerHTML = '<div class="dir-title">' + esc(dir.word + '：' + (dir.orig || '?') + ' ➔ ' + (dir.dest || '?')) +
+            '<span class="dir-sub">' + esc('城巴 ' + routeInfo.route + jointNote) + '</span></div><ul class="stop-list"></ul>';
+          resultsContainer.appendChild(card);
+        }
+        const stopListEl = card.querySelector('.stop-list');
+        stops.forEach((stopRef) => {
+          const stopItemId = 'ctb-stop-' + containerId + '-' + stopRef.seq + '-' + stopRef.stop;
+          if (document.getElementById(stopItemId)) return;
+          const stopItem = document.createElement('li');
+          stopItem.id = stopItemId;
+          stopItem.className = 'stop-item';
+          stopItem.setAttribute('data-op', 'CTB');
+          stopItem.setAttribute('data-stop', String(stopRef.stop));
+          stopItem.setAttribute('data-route', String(routeInfo.route));
+          stopItem.setAttribute('data-bound', String(dir.code));
+          stopItem.setAttribute('data-seq', String(stopRef.seq));
+          stopItem.innerHTML = '<span class="stop-name">' + esc(String(stopRef.seq)) + '. 載入中...</span><div class="eta-box">...</div>';
+          stopListEl.appendChild(stopItem);
+        });
+        await mapPool(stops, 6, async (stopRef) => {
+          if (token !== activeRequestToken) return;
+          const stopItemId = 'ctb-stop-' + containerId + '-' + stopRef.seq + '-' + stopRef.stop;
+          const stopItem = document.getElementById(stopItemId);
+          if (!stopItem) return;
+          try {
+            const stopName = await getCtbStopName(stopRef.stop);
+            const etaData = await fetchJson(API.CTB_ETA + stopRef.stop + '/' + encodeURIComponent(routeInfo.route), { live: true });
+            const rawEtas = (etaData.data || []).filter(e => {
+              const sameDir = e.dir === dir.code;
+              const sameSeq = e.seq == null || String(e.seq) === String(stopRef.seq);
+              return sameDir && sameSeq;
+            }).sort((a, b) => (a.eta_seq || 0) - (b.eta_seq || 0));
+            stopItem.querySelector('.stop-name').textContent = stopRef.seq + '. ' + stopName;
+            setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots(rawEtas.map(normalizeKmbEta)));
+          } catch (err) {
+            if (isAbortError(err)) throw err;
+            console.error('CTB stop/eta error', err);
+            setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots([], { error: true }));
+          }
+        });
+      } catch (err) {
+        if (isAbortError(err)) throw err;
+        console.error('CTB route-stop error', err);
+      }
+    }
+  }
+
+  async function loadNlbRouteData(routeInfo, isSilentRefresh, token) {
+    const resultsContainer = document.getElementById('results');
+    if (!isSilentRefresh && token === activeRequestToken) resultsContainer.innerHTML = '';
+    const containerId = 'nlb-card-' + routeInfo.routeId;
+    try {
+      const data = await fetchJson(API.NLB_STOP_LIST + '&routeId=' + encodeURIComponent(routeInfo.routeId), { live: true });
+      const stops = data.stops || [];
+      if (!stops.length) {
+        if (!isSilentRefresh) resultsContainer.innerHTML = '<div class="loading">未有發現該嶼巴路線車站。</div>';
+        return;
+      }
+      let card = document.getElementById(containerId);
+      if (!card) {
+        card = document.createElement('div');
+        card.id = containerId;
+        card.className = 'dir-card';
+        card.innerHTML = '<div class="dir-title">' + esc(routeInfo.origDest || routeInfo.route) +
+          '<span class="dir-sub">' + esc('嶼巴 ' + routeInfo.route) + '</span></div><ul class="stop-list"></ul>';
+        resultsContainer.appendChild(card);
+      }
+      const stopListEl = card.querySelector('.stop-list');
+      stops.forEach((stop, idx) => {
+        const stopItemId = 'nlb-stop-' + routeInfo.routeId + '-' + stop.stopId;
+        if (document.getElementById(stopItemId)) return;
+        const stopItem = document.createElement('li');
+        stopItem.id = stopItemId;
+        stopItem.className = 'stop-item';
+        stopItem.setAttribute('data-op', 'NLB');
+        stopItem.setAttribute('data-route-id', String(routeInfo.routeId));
+        stopItem.setAttribute('data-stop', String(stop.stopId));
+        stopItem.setAttribute('data-seq', String(idx + 1));
+        stopItem.innerHTML = '<span class="stop-name">' + esc(String(idx + 1) + '. ' + (stop.stopName_c || stop.stopName_e || '未知車站')) +
+          '</span><div class="eta-box">載入中...</div>';
+        stopListEl.appendChild(stopItem);
+      });
+      await mapPool(stops, 6, async (stop, idx) => {
+        if (token !== activeRequestToken) return;
+        const stopItemId = 'nlb-stop-' + routeInfo.routeId + '-' + stop.stopId;
+        const stopItem = document.getElementById(stopItemId);
+        if (!stopItem) return;
+        try {
+          const etaData = await fetchJson(
+            API.NLB_ETA + '&routeId=' + encodeURIComponent(routeInfo.routeId) +
+            '&stopId=' + encodeURIComponent(stop.stopId) + '&language=zh',
+            { live: true }
+          );
+          const rawEtas = (etaData.estimatedArrivals || []).map(e => {
+            const t = parseFlexibleTimestamp(e.estimatedArrivalTime);
+            const scheduled = String(e.noGPS) === '1';
+            return { eta: t, remark: scheduled ? '原定班次' : '' };
+          });
+          setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots(rawEtas));
+        } catch (e) {
+          if (isAbortError(e)) throw e;
+          setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots([], { error: true }));
+        }
+      });
+    } catch (e) {
+      if (isAbortError(e)) throw e;
+      console.error('NLB error', e);
+      if (!isSilentRefresh) resultsContainer.innerHTML = '<div class="loading">嶼巴資料載入失敗。</div>';
+    }
+  }
+
+  function getMtrBusStopName(stopId) {
+    const id = String(stopId || '').trim();
+    if (!id) return '';
+    return mtrStopNameCache.get(id) || id;
+  }
+
+  function parseMtrArrival(bus) {
+    if (!bus) return null;
+    const text = bus.arrivalTimeText || bus.departureTimeText || '';
+    const sec = Number(bus.arrivalTimeInSecond);
+    let eta = null;
+    if (!Number.isNaN(sec) && sec >= 0 && sec < 864000) {
+      eta = new Date(Date.now() + sec * 1000).toISOString();
+    }
+    const scheduled = String(bus.isScheduled) === '1';
+    const remark = [text, scheduled ? '原定班次' : '', bus.busDestination || ''].filter(Boolean).join(' ');
+    if (!eta && !remark) return null;
+    return { eta, remark };
+  }
+
+  async function loadMtrBusRouteData(routeInfo, isSilentRefresh, token) {
+    const resultsContainer = document.getElementById('results');
+    if (!isSilentRefresh && token === activeRequestToken) resultsContainer.innerHTML = '';
+    let schedule = {};
+    try {
+      schedule = await fetchJsonPost(API.MTR_BUS_ETA, { language: 'zh', routeName: routeInfo.route }, { live: true });
+    } catch (e) {
+      if (isAbortError(e)) throw e;
+      console.error('MTR bus ETA error', e);
+    }
+    const statusRemark = schedule.routeStatusRemarkTitle || schedule.routeStatusRemarkContent || '';
+    const liveStops = schedule.busStop || [];
+    const containerId = 'mtrb-card-' + routeInfo.route + '-ALL';
+    let card = document.getElementById(containerId);
+    if (!card) {
+      card = document.createElement('div');
+      card.id = containerId;
+      card.className = 'dir-card';
+      card.innerHTML = '<div class="dir-title">' + esc('路線：' + (routeInfo.origDest || routeInfo.route)) +
+        '<span class="dir-sub">' + esc('港鐵巴士 ' + routeInfo.route + (statusRemark ? '　' + statusRemark : '')) +
+        '</span></div><ul class="stop-list"></ul>';
+      resultsContainer.appendChild(card);
+    } else if (statusRemark) {
+      const sub = card.querySelector('.dir-sub');
+      if (sub) sub.textContent = '港鐵巴士 ' + routeInfo.route + '　' + statusRemark;
+    }
+    const stopListEl = card.querySelector('.stop-list');
+    liveStops.forEach((ls, idx) => {
+      const sid = 'mtrb-live-' + routeInfo.route + '-' + (ls.busStopId || idx);
+      let stopItem = document.getElementById(sid);
+      if (!stopItem) {
+        stopItem = document.createElement('li');
+        stopItem.id = sid;
+        stopItem.className = 'stop-item';
+        stopItem.setAttribute('data-op', 'MTRB');
+        stopListEl.appendChild(stopItem);
+      }
+      const name = ls.busStopName_zh || ls.busStopName_chi || ls.busStopName_tc || getMtrBusStopName(ls.busStopId) || ('站 ' + (idx + 1));
+      const rawEtas = (ls.bus || []).map(parseMtrArrival).filter(Boolean);
+      const slotsHtml = renderEtaSlots(rawEtas, statusRemark ? { remark: statusRemark } : null);
+      const nameText = String(idx + 1) + '. ' + name;
+      let nameEl = stopItem.querySelector('.stop-name');
+      let box = stopItem.querySelector('.eta-box');
+      if (!nameEl || !box) {
+        stopItem.innerHTML = '<span class="stop-name">' + esc(nameText) + '</span><div class="eta-box">' + slotsHtml + '</div>';
+      } else {
+        nameEl.textContent = nameText;
+        setEtaBox(box, slotsHtml);
+      }
+    });
+  }
+
+  async function refreshVisibleStops(token, onlyItems) {
+    const items = onlyItems || visibleStopEls();
+    if (!items.length) return;
+    await mapPool(items, 6, async (el) => {
+      if (token !== activeRequestToken) return;
+      const op = el.getAttribute('data-op');
+      const box = el.querySelector('.eta-box');
+      try {
+        if (op === 'KMB') {
+          const stop = el.getAttribute('data-stop');
+          const route = el.getAttribute('data-route');
+          const st = el.getAttribute('data-st');
+          const bound = el.getAttribute('data-bound');
+          const seq = el.getAttribute('data-seq');
+          const etaData = await fetchJson(API.KMB_ETA + stop + '/' + route + '/' + st, { live: true });
+          applyKmbEta(el, etaData, { bound: bound, serviceType: st }, seq);
+        } else if (op === 'CTB') {
+          const stop = el.getAttribute('data-stop');
+          const route = el.getAttribute('data-route');
+          const bound = el.getAttribute('data-bound');
+          const seq = el.getAttribute('data-seq');
+          const etaData = await fetchJson(API.CTB_ETA + stop + '/' + encodeURIComponent(route), { live: true });
+          const rawEtas = (etaData.data || []).filter(e => {
+            const sameDir = e.dir === bound;
+            const sameSeq = e.seq == null || String(e.seq) === String(seq);
+            return sameDir && sameSeq;
+          }).sort((a, b) => (a.eta_seq || 0) - (b.eta_seq || 0));
+          setEtaBox(box, renderEtaSlots(rawEtas.map(normalizeKmbEta)));
+        } else if (op === 'GMB') {
+          const routeId = el.getAttribute('data-route-id');
+          const routeSeq = el.getAttribute('data-route-seq');
+          const stopSeq = el.getAttribute('data-stop-seq');
+          const etaData = await fetchJson(API.GMB_ETA + routeId + '/' + routeSeq + '/' + stopSeq, { live: true });
+          const rawEtas = (etaData?.data?.eta || []).map(normalizeGmbEta).filter(Boolean);
+          setEtaBox(box, renderEtaSlots(rawEtas));
+        } else if (op === 'NLB') {
+          const routeId = el.getAttribute('data-route-id');
+          const stop = el.getAttribute('data-stop');
+          const etaData = await fetchJson(
+            API.NLB_ETA + '&routeId=' + encodeURIComponent(routeId) +
+            '&stopId=' + encodeURIComponent(stop) + '&language=zh',
+            { live: true }
+          );
+          const rawEtas = (etaData.estimatedArrivals || []).map(e => {
+            const t = parseFlexibleTimestamp(e.estimatedArrivalTime);
+            const scheduled = String(e.noGPS) === '1';
+            return { eta: t, remark: scheduled ? '原定班次' : '' };
+          });
+          setEtaBox(box, renderEtaSlots(rawEtas));
+        }
+      } catch (e) {
+        if (isAbortError(e)) throw e;
+        setEtaBox(box, renderEtaSlots([], { error: true }));
+      }
+    });
+  }
+
+  function parseFlexibleTimestamp(value) {
+    if (value == null || value === '') return null;
+    let t = String(value).trim();
+    if (!t) return null;
+    t = t.replace(' ', 'T');
+    if (/[zZ]$/.test(t) || /[+-]\d{2}:?\d{2}$/.test(t)) return t;
+    return t + '+08:00';
+  }
+
+  function isDepartedEta(etaObj) {
+    if (!etaObj || !etaObj.eta) return false;
+    const parsed = new Date(parseFlexibleTimestamp(etaObj.eta) || etaObj.eta);
+    const diffMs = parsed - Date.now();
+    return !Number.isNaN(diffMs) && diffMs <= -90000;
+  }
+
+  function renderEtaSlots(rawEtas, emptyFallback) {
+    const list = (rawEtas || []).filter(Boolean);
+    const keep = [];
+    let departed = false;
+    list.forEach((e) => {
+      if (isDepartedEta(e)) departed = true;
+      else keep.push(e);
+    });
+    let html = '';
+    for (let i = 0; i < displaySlotCount; i++) {
+      if (keep[i]) {
+        html += formatEtaSlot(keep[i], i);
+      } else if (i === 0 && departed && !keep.length && !emptyFallback) {
+        html += formatEtaSlot({ remark: '已離開' }, i);
+      } else if (emptyFallback && !keep.length) {
+        html += formatEtaSlot(emptyFallback, i);
+      } else {
+        html += formatEtaSlot(null, i);
+      }
+    }
+    return html;
+  }
+
+  function formatEtaSlot(etaObj, index) {
+    const labels = ['下一班', '第二班', '第三班'];
+    const slotLabel = labels[index] || ('第' + (index + 1) + '班');
+
+    if (etaObj && etaObj.error) {
+      return slotHtml(slotLabel, etaObj.remark || '暫時無法取得', 'eta-empty');
+    }
+    if (!etaObj || (!etaObj.eta && !etaObj.remark)) {
+      return slotHtml(slotLabel, '沒有班次', 'eta-empty');
+    }
+
+    const remark = etaObj.remark || '';
+    const isScheduled = remark.includes('原定班次');
+
+    if (etaObj.eta) {
+      const parsed = new Date(parseFlexibleTimestamp(etaObj.eta) || etaObj.eta);
+      const diffMs = parsed - new Date();
+      if (Number.isNaN(diffMs)) {
+        return slotHtml(slotLabel, remark || '時間格式異常', 'eta-empty');
+      }
+      if (diffMs <= -90000) {
+        return slotHtml(slotLabel, remark || '沒有班次', 'eta-empty');
+      }
+      const diffMins = Math.floor(diffMs / 60000);
+      if (diffMins <= 0) {
+        return slotHtml(slotLabel, '0 分（即將抵達）', 'eta-now');
+      }
+      if (isScheduled) {
+        return slotHtml(slotLabel, diffMins + ' 分（原定）', 'eta-scheduled');
+      }
+      const extra = remark && !isScheduled ? '｜' + remark : '';
+      return slotHtml(slotLabel, diffMins + ' 分（實時）' + extra, 'eta-realtime');
+    }
+
+    return slotHtml(slotLabel, remark, isScheduled ? 'eta-scheduled' : 'eta-empty');
+  }
+
+  function slotHtml(label, value, cls) {
+    return '<div class="eta-slot ' + cls + '"><span class="eta-label">' + esc(label) +
+      '</span><span class="eta-value">' + esc(value) + '</span></div>';
+  }
+
+  function etaBoxLooksPlaceholder(html) {
+    const t = String(html || '').trim();
+    if (!t || t === '...' || t === '載入中...') return true;
+    return t.indexOf('eta-slot') < 0;
+  }
+
+  function setEtaBox(box, html) {
+    if (!box) return;
+    const prev = box.innerHTML;
+    if (prev === html) return;
+    box.innerHTML = html;
+    if (etaBoxLooksPlaceholder(prev)) return;
+    box.querySelectorAll('.eta-slot').forEach((p) => {
+      p.classList.add('changed');
+      setTimeout(() => p.classList.remove('changed'), 600);
+    });
+  }
+
+  async function manualRefresh() {
+    if (!selectedRoute || isManualRefreshing || !pageVisible()) return;
+    isManualRefreshing = true;
+    if (floatRefreshBtn) {
+      floatRefreshBtn.disabled = true;
+      floatRefreshBtn.classList.add('is-opaque');
+      floatRefreshBtn.textContent = '更新中';
+    }
+    startClock();
+    let result = null;
+    try {
+      result = await fetchAndDisplayETA(selectedRoute, { silent: true, visibleOnly: false });
+    } catch (e) {
+      result = false;
+    } finally {
+      isManualRefreshing = false;
+      if (floatRefreshBtn) floatRefreshBtn.disabled = false;
+    }
+    if (!selectedRoute || (floatRefreshBtn && floatRefreshBtn.style.display === 'none')) return;
+    if (result === true) flashFloat('已刷新');
+    else if (result === false) flashFloat('更新失敗');
+    else {
+      if (floatRefreshBtn) floatRefreshBtn.classList.remove('is-opaque');
+      setCountdownDisplay(secondsRemaining);
+    }
+  }
+
+  setCountdownDisplay(secondsRemaining);
+
+  routeInput.addEventListener('input', handleSearch);
+  document.addEventListener('click', (e) => {
+    if (!routeInput.contains(e.target) && !autocompleteList.contains(e.target)) {
+      autocompleteList.style.display = 'none';
+    }
+  });
+  slotCountSelect.addEventListener('change', () => {
+    const n = parseInt(slotCountSelect.value, 10);
+    if (n !== 1 && n !== 2 && n !== 3) return;
+    displaySlotCount = n;
+    try { localStorage.setItem(SLOT_KEY, JSON.stringify(displaySlotCount)); } catch (err) {}
+    if (selectedRoute) fetchAndDisplayETA(selectedRoute, { silent: true, visibleOnly: false });
+  });
+  refreshIntervalSelect.addEventListener('change', () => {
+    const next = parseInt(refreshIntervalSelect.value, 10);
+    if (next !== 10 && next !== 12 && next !== 15) return;
+    refreshIntervalSec = next;
+    try { localStorage.setItem(REFRESH_KEY, JSON.stringify(refreshIntervalSec)); } catch (err) {}
+    if (selectedRoute) startClock();
+    else setCountdownDisplay(refreshIntervalSec);
+  });
+  floatRefreshBtn.addEventListener('click', manualRefresh);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      activeRequestToken += 1;
+      abortLive();
+      inFlight = false;
+      stopClock();
+      pendingVisibleRefresh = false;
+      if (scrollDebounce) {
+        clearTimeout(scrollDebounce);
+        scrollDebounce = null;
+      }
+      return;
+    }
+    if (!selectedRoute) return;
+    fetchAndDisplayETA(selectedRoute, { silent: true, visibleOnly: true });
+    startClock();
+  });
+  window.addEventListener('scroll', scheduleNewlyVisibleRefresh, { passive: true });
+
+  initRoutes();
+})();
+</script>
+
+</body>
+</html>
