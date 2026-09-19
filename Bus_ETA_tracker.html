@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>香港巴士與小巴實時 ETA 查詢平台 (v15.1)</title>
+  <title>香港巴士與小巴實時 ETA 查詢平台 (v15.2)</title>
   <style>
     :root {
       --primary-color: #0056b3;
@@ -241,6 +241,9 @@
     .eta-slot.eta-empty { background: #f5f5f5; border-color: #e0e0e0; }
     .eta-slot.eta-empty .eta-value { color: #9e9e9e; }
 
+    .eta-slot { transition: background-color .2s ease, color .2s ease, box-shadow .2s ease; }
+    .eta-slot.changed { box-shadow: 0 0 0 2px color-mix(in oklab, var(--primary-color) 45%, transparent); }
+
     .loading {
       text-align: center;
       color: #666;
@@ -348,7 +351,7 @@
 <body>
 
 <div class="container">
-  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v15.1)</span></h1>
+  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v15.2)</span></h1>
 
   <div class="search-box">
     <input type="text" id="routeInput" placeholder="輸入路線編號 (例: 5B, 116, 140M, 1, K12)..." autocomplete="off">
@@ -1739,7 +1742,7 @@
       return sameDir && sameSt && sameSeq;
     });
     rawEtas.sort((a, b) => (a.eta_seq || 0) - (b.eta_seq || 0));
-    stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots(rawEtas.map(normalizeKmbEta));
+    setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots(rawEtas.map(normalizeKmbEta)));
   }
 
   async function loadKmbRouteData(routeInfo, isSilentRefresh, token) {
@@ -1817,7 +1820,7 @@
           } catch (err) {
             if (isAbortError(err)) throw err;
             console.error('KMB stop/eta error', err);
-            stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots([], { error: true });
+            setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots([], { error: true }));
           }
         });
       } catch (err) {
@@ -1931,10 +1934,10 @@
           try {
             const etaData = await fetchJson(API.GMB_ETA + variant.route_id + '/' + dir.route_seq + '/' + stop.stop_seq, { live: true });
             const rawEtas = (etaData?.data?.eta || []).map(normalizeGmbEta).filter(Boolean);
-            stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots(rawEtas);
+            setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots(rawEtas));
           } catch (e) {
             if (isAbortError(e)) throw e;
-            stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots([], { error: true });
+            setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots([], { error: true }));
           }
         });
       } catch (e) {
@@ -2019,11 +2022,11 @@
               return sameDir && sameSeq;
             }).sort((a, b) => (a.eta_seq || 0) - (b.eta_seq || 0));
             stopItem.querySelector('.stop-name').textContent = stopRef.seq + '. ' + stopName;
-            stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots(rawEtas.map(normalizeKmbEta));
+            setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots(rawEtas.map(normalizeKmbEta)));
           } catch (err) {
             if (isAbortError(err)) throw err;
             console.error('CTB stop/eta error', err);
-            stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots([], { error: true });
+            setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots([], { error: true }));
           }
         });
       } catch (err) {
@@ -2084,10 +2087,10 @@
             const scheduled = String(e.noGPS) === '1';
             return { eta: t, remark: scheduled ? '原定班次' : '' };
           });
-          stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots(rawEtas);
+          setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots(rawEtas));
         } catch (e) {
           if (isAbortError(e)) throw e;
-          stopItem.querySelector('.eta-box').innerHTML = renderEtaSlots([], { error: true });
+          setEtaBox(stopItem.querySelector('.eta-box'), renderEtaSlots([], { error: true }));
         }
       });
     } catch (e) {
@@ -2157,7 +2160,15 @@
       const name = ls.busStopName_zh || ls.busStopName_chi || ls.busStopName_tc || getMtrBusStopName(ls.busStopId) || ('站 ' + (idx + 1));
       const rawEtas = (ls.bus || []).map(parseMtrArrival).filter(Boolean);
       const slotsHtml = renderEtaSlots(rawEtas, statusRemark ? { remark: statusRemark } : null);
-      stopItem.innerHTML = '<span class="stop-name">' + esc(String(idx + 1) + '. ' + name) + '</span><div class="eta-box">' + slotsHtml + '</div>';
+      const nameText = String(idx + 1) + '. ' + name;
+      let nameEl = stopItem.querySelector('.stop-name');
+      let box = stopItem.querySelector('.eta-box');
+      if (!nameEl || !box) {
+        stopItem.innerHTML = '<span class="stop-name">' + esc(nameText) + '</span><div class="eta-box">' + slotsHtml + '</div>';
+      } else {
+        nameEl.textContent = nameText;
+        setEtaBox(box, slotsHtml);
+      }
     });
   }
 
@@ -2188,14 +2199,14 @@
             const sameSeq = e.seq == null || String(e.seq) === String(seq);
             return sameDir && sameSeq;
           }).sort((a, b) => (a.eta_seq || 0) - (b.eta_seq || 0));
-          if (box) box.innerHTML = renderEtaSlots(rawEtas.map(normalizeKmbEta));
+          setEtaBox(box, renderEtaSlots(rawEtas.map(normalizeKmbEta)));
         } else if (op === 'GMB') {
           const routeId = el.getAttribute('data-route-id');
           const routeSeq = el.getAttribute('data-route-seq');
           const stopSeq = el.getAttribute('data-stop-seq');
           const etaData = await fetchJson(API.GMB_ETA + routeId + '/' + routeSeq + '/' + stopSeq, { live: true });
           const rawEtas = (etaData?.data?.eta || []).map(normalizeGmbEta).filter(Boolean);
-          if (box) box.innerHTML = renderEtaSlots(rawEtas);
+          setEtaBox(box, renderEtaSlots(rawEtas));
         } else if (op === 'NLB') {
           const routeId = el.getAttribute('data-route-id');
           const stop = el.getAttribute('data-stop');
@@ -2209,11 +2220,11 @@
             const scheduled = String(e.noGPS) === '1';
             return { eta: t, remark: scheduled ? '原定班次' : '' };
           });
-          if (box) box.innerHTML = renderEtaSlots(rawEtas);
+          setEtaBox(box, renderEtaSlots(rawEtas));
         }
       } catch (e) {
         if (isAbortError(e)) throw e;
-        if (box) box.innerHTML = renderEtaSlots([], { error: true });
+        setEtaBox(box, renderEtaSlots([], { error: true }));
       }
     });
   }
@@ -2297,6 +2308,24 @@
   function slotHtml(label, value, cls) {
     return '<div class="eta-slot ' + cls + '"><span class="eta-label">' + esc(label) +
       '</span><span class="eta-value">' + esc(value) + '</span></div>';
+  }
+
+  function etaBoxLooksPlaceholder(html) {
+    const t = String(html || '').trim();
+    if (!t || t === '...' || t === '載入中...') return true;
+    return t.indexOf('eta-slot') < 0;
+  }
+
+  function setEtaBox(box, html) {
+    if (!box) return;
+    const prev = box.innerHTML;
+    if (prev === html) return;
+    box.innerHTML = html;
+    if (etaBoxLooksPlaceholder(prev)) return;
+    box.querySelectorAll('.eta-slot').forEach((p) => {
+      p.classList.add('changed');
+      setTimeout(() => p.classList.remove('changed'), 600);
+    });
   }
 
   async function manualRefresh() {
