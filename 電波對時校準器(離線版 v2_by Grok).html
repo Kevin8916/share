@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>電波對時校準器 v2</title>
+    <style>
+        :root {
+            --bg-color: #121319;
+            --card-bg: #1c1d24;
+            --card-border: #2a2c38;
+            --accent-orange: #ff6b35;
+            --accent-blue: #2563eb;
+            --accent-blue-hover: #1d4ed8;
+            --text-primary: #ffffff;
+            --text-secondary: #8e8e93;
+            --radius-lg: 16px;
+            --radius-md: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-primary);
+            display: flex;
+            justify-content: center;
+            min-height: 100vh;
+            padding: 20px 16px;
+        }
+
+        .container {
+            width: 100%;
+            max-width: 440px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .time-display-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            padding: 24px 20px;
+            text-align: center;
+        }
+
+        .clock-time {
+            font-size: 3.2rem;
+            font-weight: 700;
+            font-variant-numeric: tabular-nums;
+            letter-spacing: -1px;
+            margin-bottom: 8px;
+            color: var(--text-primary);
+        }
+
+        .source-tag {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            background: rgba(255, 255, 255, 0.08);
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.85rem;
+            color: #60a5fa;
+            margin-bottom: 12px;
+        }
+
+        .current-date {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .encode-status {
+            margin-top: 12px;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            line-height: 1.45;
+        }
+
+        .wave-bar-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-end;
+            gap: 6px;
+            height: 24px;
+            margin-top: 16px;
+        }
+
+        .wave-bar {
+            width: 4px;
+            height: 8px;
+            background: var(--text-secondary);
+            border-radius: 2px;
+            transition: height 0.1s ease, background-color 0.2s ease;
+        }
+
+        .wave-bar.active {
+            background: var(--accent-orange);
+            animation: pulseWave 0.6s infinite alternate ease-in-out;
+        }
+
+        @keyframes pulseWave {
+            0% { height: 6px; }
+            100% { height: 24px; }
+        }
+
+        .section-title {
+            font-size: 0.95rem;
+            color: var(--text-secondary);
+            margin-bottom: 10px;
+            padding-left: 4px;
+        }
+
+        .station-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+
+        .station-card {
+            background: var(--card-bg);
+            border: 1.5px solid var(--card-border);
+            border-radius: var(--radius-md);
+            padding: 14px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .station-card.active {
+            border-color: var(--accent-orange);
+            background: rgba(255, 107, 53, 0.12);
+        }
+
+        .station-name {
+            font-size: 1.05rem;
+            font-weight: 600;
+            margin-bottom: 4px;
+        }
+
+        .station-card.active .station-name {
+            color: var(--accent-orange);
+        }
+
+        .station-desc {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            line-height: 1.3;
+        }
+
+        .settings-card, .note-card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: var(--radius-lg);
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .note-card {
+            gap: 8px;
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+            line-height: 1.5;
+        }
+
+        .note-card strong {
+            color: var(--text-primary);
+            font-weight: 600;
+        }
+
+        .wwvb-warn {
+            display: none;
+            color: #fbbf24;
+        }
+
+        .wwvb-warn.show {
+            display: block;
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .setting-info {
+            display: flex;
+            flex-direction: column;
+            padding-right: 12px;
+        }
+
+        .setting-label {
+            font-size: 0.95rem;
+            font-weight: 500;
+        }
+
+        .setting-sublabel {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            margin-top: 2px;
+        }
+
+        .stepper-control {
+            display: flex;
+            align-items: center;
+            background: rgba(0, 0, 0, 0.3);
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            overflow: hidden;
+            flex-shrink: 0;
+        }
+
+        .stepper-btn {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            width: 36px;
+            height: 36px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            user-select: none;
+        }
+
+        .stepper-btn:active {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .stepper-value {
+            min-width: 54px;
+            text-align: center;
+            font-size: 0.9rem;
+            font-weight: 600;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .action-btn {
+            width: 100%;
+            background: var(--accent-blue);
+            color: white;
+            border: none;
+            border-radius: 28px;
+            padding: 16px;
+            font-size: 1.1rem;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            box-shadow: 0 4px 12px rgba(37, 99, 235, 0.3);
+            transition: background 0.2s ease, transform 0.1s ease;
+            margin-top: 10px;
+        }
+
+        .action-btn:active {
+            transform: scale(0.98);
+        }
+
+        .action-btn.active {
+            background: #dc2626;
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.3);
+        }
+
+        .divider {
+            height: 1px;
+            background: var(--card-border);
+        }
+
+        .version-tag {
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            padding-bottom: 8px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="time-display-card">
+        <div class="source-tag">
+            <span>🌐 發射時間：裝置時鐘 ± 補償</span>
+        </div>
+        <div class="clock-time" id="clock">00:00:00</div>
+        <div class="current-date" id="date">2026-01-01 星期一</div>
+        <div class="encode-status" id="encodeStatus">選擇授時臺後開始校準</div>
+
+        <div class="wave-bar-container" id="waveContainer">
+            <div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div>
+            <div class="wave-bar"></div><div class="wave-bar"></div>
+        </div>
+    </div>
+
+    <div>
+        <div class="section-title">選擇模擬授時臺</div>
+        <div class="station-grid">
+            <div class="station-card" onclick="selectStation('BPC', this)">
+                <div class="station-name">中國 BPC</div>
+                <div class="station-desc">68.5 kHz · 20 秒幀 · 諧波 13.7 kHz</div>
+            </div>
+            <div class="station-card active" onclick="selectStation('JJY60', this)">
+                <div class="station-name">日本·九州 JJY60</div>
+                <div class="station-desc">60 kHz · 諧波 20 kHz</div>
+            </div>
+            <div class="station-card" onclick="selectStation('JJY40', this)">
+                <div class="station-name">日本·福島 JJY40</div>
+                <div class="station-desc">40 kHz · 諧波 13.333 kHz</div>
+            </div>
+            <div class="station-card" onclick="selectStation('WWVB', this)">
+                <div class="station-name">美國 WWVB</div>
+                <div class="station-desc">60 kHz · 幀內當 UTC · 諧波 20 kHz</div>
+            </div>
+            <div class="station-card" onclick="selectStation('MSF', this)">
+                <div class="station-name">英國 MSF</div>
+                <div class="station-desc">60 kHz · 諧波 20 kHz</div>
+            </div>
+            <div class="station-card" onclick="selectStation('DCF77', this)">
+                <div class="station-name">德國 DCF77</div>
+                <div class="station-desc">77.5 kHz · 諧波 15.5 kHz</div>
+            </div>
+        </div>
+    </div>
+
+    <div class="settings-card">
+        <div class="setting-row">
+            <div class="setting-info">
+                <div class="setting-label">時區時間補償</div>
+                <div class="setting-sublabel">取完裝置時間後，以 1 小時加減再編碼</div>
+            </div>
+            <div class="stepper-control">
+                <button class="stepper-btn" onclick="adjustHourOffset(-1)">-</button>
+                <div class="stepper-value" id="hourOffsetVal">0 小時</div>
+                <button class="stepper-btn" onclick="adjustHourOffset(1)">+</button>
+            </div>
+        </div>
+
+        <div class="divider"></div>
+
+        <div class="setting-row">
+            <div class="setting-info">
+                <div class="setting-label">微調時間補償</div>
+                <div class="setting-sublabel">以 0.01 秒補償傳輸／喇叭延遲</div>
+            </div>
+            <div class="stepper-control">
+                <button class="stepper-btn" onclick="adjustFineOffset(-0.01)">-</button>
+                <div class="stepper-value" id="fineOffsetVal">0.00 秒</div>
+                <button class="stepper-btn" onclick="adjustFineOffset(0.01)">+</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="note-card">
+        <div><strong>方法 A：</strong>幀裡的時、分、日期 = 上面顯示的發射時間（裝置時鐘 ± 補償），不是該局官方時區自動換算。</div>
+        <div>手機音量開最大，手錶天線貼近內建喇叭，不要用藍牙。收訊通常需要 2–3 分鐘。選局須對手錶會聽的那一局（主城市）。</div>
+        <div id="wwvbWarn" class="wwvb-warn">WWVB 手錶會把幀內時分當成 UTC，再依主城市加減時區。主城市若是紐約／洛杉磯，錶面不會等於上面的發射時間。</div>
+    </div>
+
+    <button class="action-btn" id="toggleBtn" onclick="toggleCalibration()">
+        <span id="btnIcon">▶</span> <span id="btnText">開始校準時間</span>
+    </button>
+    <div class="version-tag">離線版 v2 · 六局時間碼 · 不覆蓋原稿</div>
+</div>
+
+<script>
+    const STATION_LABEL = {
+        BPC: 'BPC',
+        JJY60: 'JJY60',
+        JJY40: 'JJY40',
+        WWVB: 'WWVB',
+        MSF: 'MSF',
+        DCF77: 'DCF77'
+    };
+
+    const CARRIER_HZ = {
+        JJY40: 40000 / 3,
+        JJY60: 60000 / 3,
+        WWVB: 60000 / 3,
+        MSF: 60000 / 3,
+        BPC: 68500 / 5,
+        DCF77: 77500 / 5
+    };
+
+    const HIGH_GAIN = 0.85;
+    const LOW_GAIN = 0.085;
+
+    let selectedStation = 'JJY60';
+    let hourOffset = 0;
+    let fineOffset = 0;
+    let isRunning = false;
+
+    let audioCtx = null;
+    let oscNode = null;
+    let gainNode = null;
+    let timerId = null;
+    let wakeLock = null;
+    let scheduledTSec = -1;
+    let audioOrigin = { wallMs: 0, audioT: 0 };
+
+    const WEEKDAYS = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+
+    function evenParity(bits) {
+        return bits.reduce((acc, bit) => acc ^ (bit ? 1 : 0), 0);
+    }
+
+    function oddParity(bits) {
+        return evenParity(bits) ^ 1;
+    }
+
+    function takeBits(n, weights) {
+        const out = [];
+        let rest = n;
+        for (const w of weights) {
+            if (rest >= w) {
+                out.push(1);
+                rest -= w;
+            } else {
+                out.push(0);
+            }
+        }
+        return out;
+    }
+
+    function maskBits(n, weights) {
+        return weights.map((w) => (n & w) ? 1 : 0);
+    }
+
+    function civilFields(d) {
+        const y = d.getFullYear();
+        const month = d.getMonth() + 1;
+        const date = d.getDate();
+        const start = new Date(y, 0, 1);
+        const today = new Date(y, d.getMonth(), date);
+        const doy = Math.round((today - start) / 86400000) + 1;
+        const leap = ((y % 4 === 0) && (y % 100 !== 0)) || (y % 400 === 0);
+        return {
+            y,
+            month,
+            date,
+            hours: d.getHours(),
+            minutes: d.getMinutes(),
+            seconds: d.getSeconds(),
+            dow: d.getDay(),
+            doy,
+            yy: y % 100,
+            leap
+        };
+    }
+
+    function addMinutes(d, minutes) {
+        return new Date(d.getTime() + minutes * 60000);
+    }
+
+    function startOfNextMinute(d) {
+        const n = new Date(d.getTime());
+        n.setSeconds(0, 0);
+        return addMinutes(n, 1);
+    }
+
+    function encodeJJY(t) {
+        const f = civilFields(t);
+        const bits = new Array(60).fill(0);
+        [0, 9, 19, 29, 39, 49, 59].forEach((i) => { bits[i] = 'M'; });
+        const minB = takeBits(f.minutes, [40, 20, 10, 8, 4, 2, 1]);
+        bits[1] = minB[0]; bits[2] = minB[1]; bits[3] = minB[2]; bits[4] = 0;
+        bits[5] = minB[3]; bits[6] = minB[4]; bits[7] = minB[5]; bits[8] = minB[6];
+        bits[10] = 0; bits[11] = 0;
+        const hrB = takeBits(f.hours, [20, 10, 8, 4, 2, 1]);
+        bits[12] = hrB[0]; bits[13] = hrB[1]; bits[14] = 0;
+        bits[15] = hrB[2]; bits[16] = hrB[3]; bits[17] = hrB[4]; bits[18] = hrB[5];
+        bits[20] = 0; bits[21] = 0;
+        const doyB = takeBits(f.doy, [200, 100, 80, 40, 20, 10, 8, 4, 2, 1]);
+        bits[22] = doyB[0]; bits[23] = doyB[1]; bits[24] = 0;
+        bits[25] = doyB[2]; bits[26] = doyB[3]; bits[27] = doyB[4]; bits[28] = doyB[5];
+        bits[30] = doyB[6]; bits[31] = doyB[7]; bits[32] = doyB[8]; bits[33] = doyB[9];
+        bits[34] = 0; bits[35] = 0;
+        bits[36] = evenParity([bits[12], bits[13], bits[15], bits[16], bits[17], bits[18]]);
+        bits[37] = evenParity([bits[1], bits[2], bits[3], bits[5], bits[6], bits[7], bits[8]]);
+        bits[38] = 0; bits[40] = 0;
+        const yB = takeBits(f.yy, [80, 40, 20, 10, 8, 4, 2, 1]);
+        for (let i = 0; i < 8; i++) bits[41 + i] = yB[i];
+        const wB = takeBits(f.dow, [4, 2, 1]);
+        bits[50] = wB[0]; bits[51] = wB[1]; bits[52] = wB[2];
+        bits[53] = 0; bits[54] = 0; bits[55] = 0; bits[56] = 0; bits[57] = 0; bits[58] = 0;
+        return bits;
+    }
+
+    function encodeWWVB(t) {
+        const f = civilFields(t);
+        const bits = new Array(60).fill(0);
+        [0, 9, 19, 29, 39, 49, 59].forEach((i) => { bits[i] = 'M'; });
+        const minB = takeBits(f.minutes, [40, 20, 10, 8, 4, 2, 1]);
+        bits[1] = minB[0]; bits[2] = minB[1]; bits[3] = minB[2]; bits[4] = 0;
+        bits[5] = minB[3]; bits[6] = minB[4]; bits[7] = minB[5]; bits[8] = minB[6];
+        bits[10] = 0; bits[11] = 0;
+        const hrB = takeBits(f.hours, [20, 10, 8, 4, 2, 1]);
+        bits[12] = hrB[0]; bits[13] = hrB[1]; bits[14] = 0;
+        bits[15] = hrB[2]; bits[16] = hrB[3]; bits[17] = hrB[4]; bits[18] = hrB[5];
+        bits[20] = 0; bits[21] = 0;
+        const doyB = takeBits(f.doy, [200, 100, 80, 40, 20, 10, 8, 4, 2, 1]);
+        bits[22] = doyB[0]; bits[23] = doyB[1]; bits[24] = 0;
+        bits[25] = doyB[2]; bits[26] = doyB[3]; bits[27] = doyB[4]; bits[28] = doyB[5];
+        bits[30] = doyB[6]; bits[31] = doyB[7]; bits[32] = doyB[8]; bits[33] = doyB[9];
+        bits[34] = 0; bits[35] = 0;
+        bits[36] = 0; bits[37] = 0; bits[38] = 0;
+        bits[40] = 0; bits[41] = 0; bits[42] = 0; bits[43] = 0; bits[44] = 0;
+        const yB = takeBits(f.yy, [80, 40, 20, 10, 8, 4, 2, 1]);
+        bits[45] = yB[0]; bits[46] = yB[1]; bits[47] = yB[2]; bits[48] = yB[3];
+        bits[50] = yB[4]; bits[51] = yB[5]; bits[52] = yB[6]; bits[53] = yB[7];
+        bits[54] = 0;
+        bits[55] = f.leap ? 1 : 0;
+        bits[56] = 0; bits[57] = 0; bits[58] = 0;
+        return bits;
+    }
+
+    function bcdLsb(value, onesCount, tensCount) {
+        const ones = value % 10;
+        const tens = Math.floor(value / 10);
+        return maskBits(ones, [1, 2, 4, 8].slice(0, onesCount))
+            .concat(maskBits(tens, [1, 2, 4, 8].slice(0, tensCount)));
+    }
+
+    function encodeDCF77(tNext) {
+        const f = civilFields(tNext);
+        const bits = new Array(59).fill(0);
+        const isoDow = f.dow === 0 ? 7 : f.dow;
+        bits[20] = 1;
+        bits[18] = 1;
+        const minB = bcdLsb(f.minutes, 4, 3);
+        for (let i = 0; i < 7; i++) bits[21 + i] = minB[i];
+        bits[28] = evenParity(minB);
+        const hrB = bcdLsb(f.hours, 4, 2);
+        for (let i = 0; i < 6; i++) bits[29 + i] = hrB[i];
+        bits[35] = evenParity(hrB);
+        const dayB = bcdLsb(f.date, 4, 2);
+        for (let i = 0; i < 6; i++) bits[36 + i] = dayB[i];
+        const wB = maskBits(isoDow, [1, 2, 4]);
+        bits[42] = wB[0]; bits[43] = wB[1]; bits[44] = wB[2];
+        const monB = bcdLsb(f.month, 4, 1);
+        for (let i = 0; i < 5; i++) bits[45 + i] = monB[i];
+        const yB = bcdLsb(f.yy, 4, 4);
+        for (let i = 0; i < 8; i++) bits[50 + i] = yB[i];
+        bits[58] = evenParity(bits.slice(36, 58));
+        return bits;
+    }
+
+    function encodeMSF(tNext) {
+        const f = civilFields(tNext);
+        const A = new Array(60).fill(0);
+        const B = new Array(60).fill(0);
+        A[0] = 1; B[0] = 1;
+        const yB = takeBits(f.yy, [80, 40, 20, 10, 8, 4, 2, 1]);
+        for (let i = 0; i < 8; i++) A[17 + i] = yB[i];
+        const monB = takeBits(f.month, [10, 8, 4, 2, 1]);
+        for (let i = 0; i < 5; i++) A[25 + i] = monB[i];
+        const dayB = takeBits(f.date, [20, 10, 8, 4, 2, 1]);
+        for (let i = 0; i < 6; i++) A[30 + i] = dayB[i];
+        const wB = takeBits(f.dow, [4, 2, 1]);
+        A[36] = wB[0]; A[37] = wB[1]; A[38] = wB[2];
+        const hrB = takeBits(f.hours, [20, 10, 8, 4, 2, 1]);
+        for (let i = 0; i < 6; i++) A[39 + i] = hrB[i];
+        const minB = takeBits(f.minutes, [40, 20, 10, 8, 4, 2, 1]);
+        for (let i = 0; i < 7; i++) A[45 + i] = minB[i];
+        A[52] = 0;
+        A[53] = 1; A[54] = 1; A[55] = 1; A[56] = 1; A[57] = 1; A[58] = 1;
+        A[59] = 0;
+        B[53] = 0;
+        B[54] = oddParity(A.slice(17, 25));
+        B[55] = oddParity(A.slice(25, 36));
+        B[56] = oddParity(A.slice(36, 39));
+        B[57] = oddParity(A.slice(39, 52));
+        B[58] = 0;
+        return { A, B };
+    }
+
+    function encodeBPC(tBlock) {
+        const f = civilFields(tBlock);
+        const hour12 = f.hours % 12;
+        const pm = f.hours >= 12 ? 1 : 0;
+        const isoDow = f.dow === 0 ? 7 : f.dow;
+        const pairs = new Array(20);
+        const setPair = (sec, hi, lo) => { pairs[sec] = { hi, lo }; };
+        const secB = takeBits(f.seconds, [40, 20]);
+        setPair(1, secB[0], secB[1]);
+        setPair(2, 0, 0);
+        const hB = takeBits(hour12, [8, 4, 2, 1]);
+        setPair(3, hB[0], hB[1]);
+        setPair(4, hB[2], hB[3]);
+        const minB = takeBits(f.minutes, [32, 16, 8, 4, 2, 1]);
+        setPair(5, minB[0], minB[1]);
+        setPair(6, minB[2], minB[3]);
+        setPair(7, minB[4], minB[5]);
+        const wB = takeBits(isoDow, [4, 2, 1]);
+        setPair(8, 0, wB[0]);
+        setPair(9, wB[1], wB[2]);
+        const p1bits = [];
+        for (let s = 1; s <= 9; s++) p1bits.push(pairs[s].hi, pairs[s].lo);
+        setPair(10, pm, evenParity(p1bits));
+        const dB = takeBits(f.date, [16, 8, 4, 2, 1]);
+        setPair(11, 0, dB[0]);
+        setPair(12, dB[1], dB[2]);
+        setPair(13, dB[3], dB[4]);
+        const moB = takeBits(f.month, [8, 4, 2, 1]);
+        setPair(14, moB[0], moB[1]);
+        setPair(15, moB[2], moB[3]);
+        const yB = takeBits(f.yy, [64, 32, 16, 8, 4, 2, 1]);
+        setPair(16, yB[1], yB[2]);
+        setPair(17, yB[3], yB[4]);
+        setPair(18, yB[5], yB[6]);
+        const p2bits = [];
+        for (let s = 11; s <= 18; s++) p2bits.push(pairs[s].hi, pairs[s].lo);
+        setPair(19, yB[0], evenParity(p2bits));
+        return pairs;
+    }
+
+    function pulseForSecond(station, t) {
+        const sec = t.getSeconds();
+        if (station === 'JJY40' || station === 'JJY60') {
+            const bit = encodeJJY(t)[sec];
+            const width = bit === 'M' ? 0.2 : (bit ? 0.5 : 0.8);
+            return { start: 'high', switchAt: width, lowIsOff: false, label: bit === 'M' ? '標記' : String(bit) };
+        }
+        if (station === 'WWVB') {
+            const bit = encodeWWVB(t)[sec];
+            const width = bit === 'M' ? 0.8 : (bit ? 0.5 : 0.2);
+            return { start: 'low', switchAt: width, lowIsOff: false, label: bit === 'M' ? '標記' : String(bit) };
+        }
+        if (station === 'DCF77') {
+            if (sec === 59) return { start: 'high', switchAt: null, lowIsOff: false, label: '分同步' };
+            const bit = encodeDCF77(startOfNextMinute(t))[sec];
+            return { start: 'low', switchAt: bit ? 0.2 : 0.1, lowIsOff: false, label: String(bit) };
+        }
+        if (station === 'MSF') {
+            const frame = encodeMSF(startOfNextMinute(t));
+            if (sec === 0) return { start: 'low', switchAt: 0.5, lowIsOff: true, label: '分標記' };
+            let off = 0.1;
+            if (frame.A[sec]) off += 0.1;
+            if (frame.B[sec]) off += 0.1;
+            return { start: 'low', switchAt: off, lowIsOff: true, label: 'A' + frame.A[sec] + 'B' + frame.B[sec] };
+        }
+        if (station === 'BPC') {
+            const blockSec = Math.floor(sec / 20) * 20;
+            const blockTime = new Date(t.getTime());
+            blockTime.setSeconds(blockSec, 0);
+            const pos = sec % 20;
+            if (pos === 0) return { start: 'high', switchAt: null, lowIsOff: false, label: '幀頭' };
+            const pair = encodeBPC(blockTime)[pos];
+            const dur = 0.1 + ((pair.hi << 1) | pair.lo) * 0.1;
+            return { start: 'low', switchAt: dur, lowIsOff: false, label: String(pair.hi) + String(pair.lo) };
+        }
+        return { start: 'low', switchAt: 0.5, lowIsOff: false, label: '?' };
+    }
+
+    function getTargetTime(wallMs) {
+        const base = wallMs === undefined ? Date.now() : wallMs;
+        return new Date(base + hourOffset * 3600 * 1000 + Math.round(fineOffset * 1000));
+    }
+
+    function formatOffsetHour() {
+        const sign = hourOffset > 0 ? '+' : '';
+        return `${sign}${hourOffset} 小時`;
+    }
+
+    function formatOffsetFine() {
+        const sign = fineOffset > 0 ? '+' : '';
+        return `${sign}${fineOffset.toFixed(2)} 秒`;
+    }
+
+    function updateDisplayClock() {
+        const now = getTargetTime();
+        const hrs = String(now.getHours()).padStart(2, '0');
+        const mins = String(now.getMinutes()).padStart(2, '0');
+        const secs = String(now.getSeconds()).padStart(2, '0');
+        document.getElementById('clock').innerText = `${hrs}:${mins}:${secs}`;
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        document.getElementById('date').innerText = `${year}-${month}-${day} ${WEEKDAYS[now.getDay()]}`;
+
+        const pulse = pulseForSecond(selectedStation, now);
+        const hz = CARRIER_HZ[selectedStation];
+        const run = isRunning ? '發射中' : '待機';
+        document.getElementById('encodeStatus').innerText =
+            `${run} · ${STATION_LABEL[selectedStation]} · 本秒 ${pulse.label} · 方波 ${hz.toFixed(1)} Hz`;
+    }
+    setInterval(updateDisplayClock, 100);
+
+    function selectStation(stationKey, el) {
+        selectedStation = stationKey;
+        document.querySelectorAll('.station-card').forEach((card) => card.classList.remove('active'));
+        el.classList.add('active');
+        document.getElementById('wwvbWarn').classList.toggle('show', stationKey === 'WWVB');
+        applyCarrierFrequency();
+        if (isRunning) resetSchedule();
+        updateDisplayClock();
+    }
+
+    function adjustHourOffset(delta) {
+        hourOffset += delta;
+        document.getElementById('hourOffsetVal').innerText = formatOffsetHour();
+        if (isRunning) resetSchedule();
+        updateDisplayClock();
+    }
+
+    function adjustFineOffset(delta) {
+        fineOffset = parseFloat((fineOffset + delta).toFixed(2));
+        document.getElementById('fineOffsetVal').innerText = formatOffsetFine();
+        if (isRunning) resetSchedule();
+        updateDisplayClock();
+    }
+
+    async function toggleCalibration() {
+        isRunning = !isRunning;
+        const btn = document.getElementById('toggleBtn');
+        const waveBars = document.querySelectorAll('.wave-bar');
+
+        if (isRunning) {
+            btn.classList.add('active');
+            document.getElementById('btnIcon').innerText = '◼';
+            document.getElementById('btnText').innerText = '結束校準';
+            waveBars.forEach((bar) => bar.classList.add('active'));
+            await startAudioSignal();
+            requestWakeLock();
+        } else {
+            btn.classList.remove('active');
+            document.getElementById('btnIcon').innerText = '▶';
+            document.getElementById('btnText').innerText = '開始校準時間';
+            waveBars.forEach((bar) => bar.classList.remove('active'));
+            stopAudioSignal();
+            releaseWakeLock();
+        }
+        updateDisplayClock();
+    }
+
+    function audioLatency() {
+        if (!audioCtx) return 0;
+        return (audioCtx.outputLatency || 0) + (audioCtx.baseLatency || 0);
+    }
+
+    function syncAudioOrigin() {
+        audioOrigin.wallMs = Date.now();
+        audioOrigin.audioT = audioCtx.currentTime;
+    }
+
+    function wallToAudio(wallMs) {
+        return audioOrigin.audioT + (wallMs - audioOrigin.wallMs) / 1000 - audioLatency();
+    }
+
+    function applyCarrierFrequency() {
+        if (!oscNode || !audioCtx) return;
+        oscNode.frequency.setValueAtTime(CARRIER_HZ[selectedStation], audioCtx.currentTime);
+    }
+
+    async function startAudioSignal() {
+        if (!audioCtx) {
+            audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioCtx.state === 'suspended') {
+            await audioCtx.resume();
+        }
+
+        stopNodesOnly();
+
+        oscNode = audioCtx.createOscillator();
+        gainNode = audioCtx.createGain();
+        oscNode.type = 'square';
+        oscNode.frequency.setValueAtTime(CARRIER_HZ[selectedStation], audioCtx.currentTime);
+        gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+        oscNode.connect(gainNode);
+        gainNode.connect(audioCtx.destination);
+        oscNode.start();
+
+        syncAudioOrigin();
+        scheduledTSec = -1;
+        runScheduler();
+    }
+
+    function stopNodesOnly() {
+        if (gainNode && audioCtx) {
+            try {
+                gainNode.gain.cancelScheduledValues(audioCtx.currentTime);
+                gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                gainNode.disconnect();
+            } catch (e) {}
+        }
+        if (oscNode) {
+            try { oscNode.stop(); oscNode.disconnect(); } catch (e) {}
+        }
+        oscNode = null;
+        gainNode = null;
+    }
+
+    function stopAudioSignal() {
+        if (timerId) {
+            clearTimeout(timerId);
+            timerId = null;
+        }
+        stopNodesOnly();
+        scheduledTSec = -1;
+    }
+
+    function resetSchedule() {
+        if (!audioCtx || !gainNode) return;
+        try { gainNode.gain.cancelScheduledValues(audioCtx.currentTime); } catch (e) {}
+        gainNode.gain.setValueAtTime(gainNode.gain.value, audioCtx.currentTime);
+        syncAudioOrigin();
+        scheduledTSec = -1;
+    }
+
+    function runScheduler() {
+        if (!isRunning) return;
+        if (audioCtx && audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+
+        const nowT = getTargetTime();
+        const currentSec = Math.floor(nowT.getTime() / 1000);
+        const msInto = nowT.getTime() % 1000;
+        let first = currentSec;
+        if (msInto > 40 && scheduledTSec < currentSec) first = currentSec + 1;
+
+        const horizon = currentSec + 3;
+        for (let sec = Math.max(first, scheduledTSec + 1); sec <= horizon; sec++) {
+            scheduleCivilSecond(sec);
+            scheduledTSec = sec;
+        }
+        timerId = setTimeout(runScheduler, 50);
+    }
+
+    function scheduleCivilSecond(epochSec) {
+        if (!gainNode || !audioCtx) return;
+        const tMs = epochSec * 1000;
+        const wallMs = tMs - hourOffset * 3600 * 1000 - Math.round(fineOffset * 1000);
+        const when = wallToAudio(wallMs);
+        if (when < audioCtx.currentTime - 0.02) return;
+
+        const civil = new Date(tMs);
+        const pulse = pulseForSecond(selectedStation, civil);
+        const high = HIGH_GAIN;
+        const low = pulse.lowIsOff ? 0 : LOW_GAIN;
+        const startGain = pulse.start === 'high' ? high : low;
+        const endGain = pulse.start === 'high' ? low : high;
+
+        gainNode.gain.setValueAtTime(startGain, when);
+        if (pulse.switchAt !== null) {
+            gainNode.gain.setValueAtTime(endGain, when + pulse.switchAt);
+        }
+    }
+
+    async function requestWakeLock() {
+        if (!('wakeLock' in navigator)) return;
+        try {
+            wakeLock = await navigator.wakeLock.request('screen');
+        } catch (err) {
+            console.log('Wake Lock Error:', err);
+        }
+    }
+
+    function releaseWakeLock() {
+        if (wakeLock) {
+            wakeLock.release().then(() => { wakeLock = null; });
+        }
+    }
+
+    document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && isRunning) {
+            requestWakeLock();
+            if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+            resetSchedule();
+        }
+    });
+</script>
+</body>
+</html>
