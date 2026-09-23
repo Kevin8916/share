@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>香港巴士與小巴實時 ETA 查詢平台 (v15.5)</title>
+  <title>香港巴士與小巴實時 ETA 查詢平台 (v15.7)</title>
   <style>
     :root {
       --primary-color: #0056b3;
@@ -158,7 +158,42 @@
       padding: 18px;
       box-shadow: 0 2px 8px rgba(0,0,0,0.06);
       border: 1px solid var(--border-color);
+      scroll-margin-top: 60px;
     }
+
+    .dir-jump {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      margin: 0 0 12px;
+      padding: 8px 0;
+      background: var(--bg-color);
+      -webkit-overflow-scrolling: touch;
+    }
+    .dir-jump[hidden] { display: none !important; }
+    .dir-jump-btn {
+      flex: 0 0 auto;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid #8ab4d8;
+      background: #fff;
+      color: #004085;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.88rem;
+      line-height: 1.3;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .dir-jump-btn.is-clip {
+      max-width: 14em;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .dir-jump-btn:hover { background: #e8f4fd; }
 
     .dir-title {
       font-size: 1.15rem;
@@ -351,7 +386,7 @@
 <body>
 
 <div class="container">
-  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v15.5)</span></h1>
+  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v15.7)</span></h1>
 
   <div class="search-box">
     <input type="text" id="routeInput" placeholder="輸入路線編號 (例: 5B, 116, 140M, 1, K12)..." autocomplete="off">
@@ -382,6 +417,8 @@
       <span id="countdownTimer" class="timer-badge" title="距離下次自動更新">12</span> 秒
     </div>
   </div>
+
+  <div id="dirJump" class="dir-jump" hidden></div>
 
   <div id="results" class="direction-container"></div>
 </div>
@@ -2135,11 +2172,13 @@
     const resultsContainer = document.getElementById('results');
     if (!isSilentRefresh && token === activeRequestToken) resultsContainer.innerHTML = '';
     let schedule = {};
+    let mtrBusFetchFailed = false;
     try {
       schedule = await fetchJsonPost(API.MTR_BUS_ETA, { language: 'zh', routeName: routeInfo.route }, { live: true });
     } catch (e) {
       if (isAbortError(e)) throw e;
       console.error('MTR bus ETA error', e);
+      mtrBusFetchFailed = true;
     }
     const statusRemark = schedule.routeStatusRemarkTitle || schedule.routeStatusRemarkContent || '';
     const liveStops = schedule.busStop || [];
@@ -2152,7 +2191,16 @@
     const hasAny = dirOrder.some((k) => groups[k].length);
     if (!hasAny) {
       if (!isSilentRefresh && token === activeRequestToken) {
-        resultsContainer.innerHTML = '<div class="loading">暫時沒有港鐵巴士班次資料。</div>';
+        const remarkTitle = String(schedule.routeStatusRemarkTitle || '').trim();
+        const remarkContent = String(schedule.routeStatusRemarkContent || '').trim();
+        let notice = '暫時沒有港鐵巴士班次資料。<br>港鐵未有提供班次或服務狀態。';
+        if (mtrBusFetchFailed) {
+          notice = '暫時無法取得港鐵巴士資料。<br>請稍後再試。';
+        } else if (remarkTitle || remarkContent) {
+          notice = esc(remarkTitle || remarkContent);
+          if (remarkTitle && remarkContent && remarkTitle !== remarkContent) notice += '<br>' + esc(remarkContent);
+        }
+        resultsContainer.innerHTML = '<div class="loading">' + notice + '</div>';
       }
       return;
     }
@@ -2446,6 +2494,89 @@
     startClock();
   });
   window.addEventListener('scroll', scheduleNewlyVisibleRefresh, { passive: true });
+
+  const dirJump = document.getElementById('dirJump');
+  const JUMP_ARROW = ' ➔ ';
+
+  function cardJumpMeta(card) {
+    const titleEl = card.querySelector('.dir-title');
+    if (!titleEl) return null;
+    const textNode = titleEl.childNodes[0];
+    const raw = (textNode && textNode.nodeType === 3 ? textNode.textContent : '').trim();
+    if (!raw) return null;
+    const subEl = card.querySelector('.dir-sub');
+    const sub = subEl ? subEl.textContent : '';
+    const headed = raw.match(/^(去程|回程)：(.*) ➔ (.*)$/);
+    if (headed) {
+      const destFull = headed[3].trim();
+      const orig = headed[2].trim();
+      if (destFull.endsWith('[特別班次]')) {
+        return {
+          base: '往' + destFull,
+          orig: orig,
+          title: orig + ' ➔ ' + destFull,
+          clip: false,
+          keepBase: true
+        };
+      }
+      return {
+        base: '(' + headed[1] + ') 往' + (destFull || '？'),
+        orig: orig,
+        title: orig + ' ➔ ' + destFull,
+        clip: false
+      };
+    }
+    const arrowAt = raw.indexOf(JUMP_ARROW);
+    if (arrowAt !== -1) {
+      const orig = raw.slice(0, arrowAt).trim();
+      const dest = raw.slice(arrowAt + JUMP_ARROW.length).trim();
+      const special = sub.includes('特別') || raw.includes('特別');
+      const full = orig + JUMP_ARROW + dest;
+      return {
+        base: (special ? '特別 ' : '') + full,
+        orig: orig,
+        title: full,
+        clip: true
+      };
+    }
+    return { base: raw, orig: '', title: raw, clip: true };
+  }
+
+  function syncDirJump() {
+    const cards = Array.from(document.querySelectorAll('#results > .dir-card'));
+    if (cards.length < 2) {
+      dirJump.hidden = true;
+      dirJump.replaceChildren();
+      return;
+    }
+    const metas = cards.map(cardJumpMeta).map((meta, i) => meta && Object.assign(meta, { card: cards[i] })).filter(Boolean);
+    if (metas.length < 2) {
+      dirJump.hidden = true;
+      dirJump.replaceChildren();
+      return;
+    }
+    const counts = {};
+    metas.forEach((meta) => { counts[meta.base] = (counts[meta.base] || 0) + 1; });
+    dirJump.hidden = false;
+    dirJump.replaceChildren();
+    metas.forEach((meta) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dir-jump-btn' + (meta.clip ? ' is-clip' : '');
+      let label = meta.base;
+      if (!meta.clip && !meta.keepBase && counts[meta.base] > 1 && meta.orig) label += ' · ' + meta.orig;
+      btn.textContent = label;
+      btn.title = meta.title;
+      btn.addEventListener('click', () => {
+        meta.card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      });
+      dirJump.appendChild(btn);
+    });
+  }
+
+  new MutationObserver(syncDirJump).observe(document.getElementById('results'), { childList: true });
+
+  setCountdownDisplay(secondsRemaining);
 
   initRoutes();
 })();
