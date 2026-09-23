@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>香港巴士與小巴實時 ETA 查詢平台 (v15.7)</title>
+  <title>香港巴士與小巴實時 ETA 查詢平台 (v15.8)</title>
   <style>
     :root {
       --primary-color: #0056b3;
@@ -194,6 +194,12 @@
       text-overflow: ellipsis;
     }
     .dir-jump-btn:hover { background: #e8f4fd; }
+    .dir-jump-btn.is-active,
+    .dir-jump-btn.is-active:hover {
+      background: #0056b3;
+      color: #fff;
+      border-color: #0056b3;
+    }
 
     .dir-title {
       font-size: 1.15rem;
@@ -386,7 +392,7 @@
 <body>
 
 <div class="container">
-  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v15.7)</span></h1>
+  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v15.8)</span></h1>
 
   <div class="search-box">
     <input type="text" id="routeInput" placeholder="輸入路線編號 (例: 5B, 116, 140M, 1, K12)..." autocomplete="off">
@@ -2567,14 +2573,83 @@
       if (!meta.clip && !meta.keepBase && counts[meta.base] > 1 && meta.orig) label += ' · ' + meta.orig;
       btn.textContent = label;
       btn.title = meta.title;
+      btn._jumpCard = meta.card;
       btn.addEventListener('click', () => {
+        pinJumpCard(meta.card);
         meta.card.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
       dirJump.appendChild(btn);
     });
+    markActiveJump();
+  }
+
+  let jumpPinnedCard = null;
+  let jumpPinTimer = 0;
+
+  function pinJumpCard(card) {
+    jumpPinnedCard = card;
+    markActiveJump();
+    if (jumpPinTimer) clearTimeout(jumpPinTimer);
+    jumpPinTimer = setTimeout(() => {
+      jumpPinTimer = 0;
+      jumpPinnedCard = null;
+      markActiveJump();
+    }, 2000);
+  }
+
+  function releasePinnedJump() {
+    if (!jumpPinnedCard && !jumpPinTimer) return;
+    jumpPinnedCard = null;
+    if (jumpPinTimer) {
+      clearTimeout(jumpPinTimer);
+      jumpPinTimer = 0;
+    }
+    markActiveJump();
+  }
+
+  function cardAtJumpLine(cards, line) {
+    let above = null;
+    for (const card of cards) {
+      const rect = card.getBoundingClientRect();
+      if (rect.top <= line && rect.bottom > line) return card;
+      if (rect.top <= line) above = card;
+    }
+    return above || cards[0] || null;
+  }
+
+  function jumpAlignLine(card) {
+    const raw = card ? parseFloat(getComputedStyle(card).scrollMarginTop) : 60;
+    const margin = Number.isNaN(raw) ? 60 : raw;
+    return margin + 4;
+  }
+
+  function markActiveJump() {
+    const buttons = Array.from(dirJump.querySelectorAll('.dir-jump-btn'));
+    if (dirJump.hidden || !buttons.length) return;
+    const cards = buttons.map((btn) => btn._jumpCard).filter(Boolean);
+    const pinned = jumpPinnedCard && cards.indexOf(jumpPinnedCard) !== -1 ? jumpPinnedCard : null;
+    const current = pinned || cardAtJumpLine(cards, jumpAlignLine(cards[0]));
+    buttons.forEach((btn) => {
+      const on = btn._jumpCard === current;
+      btn.classList.toggle('is-active', on);
+      if (on) btn.setAttribute('aria-current', 'true');
+      else btn.removeAttribute('aria-current');
+    });
+  }
+
+  let jumpActiveFrame = 0;
+  function scheduleActiveJump() {
+    if (jumpActiveFrame) return;
+    jumpActiveFrame = requestAnimationFrame(() => {
+      jumpActiveFrame = 0;
+      markActiveJump();
+    });
   }
 
   new MutationObserver(syncDirJump).observe(document.getElementById('results'), { childList: true });
+  window.addEventListener('scroll', scheduleActiveJump, { passive: true });
+  window.addEventListener('scrollend', releasePinnedJump);
+  window.addEventListener('resize', scheduleActiveJump);
 
   setCountdownDisplay(secondsRemaining);
 
