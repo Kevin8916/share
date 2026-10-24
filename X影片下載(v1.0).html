@@ -88,6 +88,7 @@
     }
     button.primary { background: var(--accent); color: var(--accent-ink); }
     button.primary:disabled { opacity: 0.55; cursor: progress; }
+    .save-hint { margin: 10px 2px 0; color: var(--muted); font-size: 14px; }
     #status { min-height: 1.5em; margin: 12px 2px 0; color: var(--muted); }
     #status[data-kind="error"] { color: var(--danger); }
     #result { margin-top: 16px; }
@@ -111,6 +112,7 @@
     <form id="form">
       <label for="urls">貼文網址</label>
       <textarea id="urls" spellcheck="false" autocomplete="off"></textarea>
+      <p id="saveHint" class="save-hint"></p>
       <button class="primary" id="go" type="submit">提取/下載</button>
       <p id="status" role="status"></p>
     </form>
@@ -119,8 +121,8 @@
       <summary>這頁實際連到哪裡</summary>
       <p>查清單時，只把貼文編號送到 <code>api.fxtwitter.com</code>。那是開源專案 FxEmbed，用來讀公開貼文的媒體網址。影片的位元組來自 X 的 CDN，不經過這個檔案，也不轉檔。</p>
       <p>受保護的帳號查不到。有些網址過一段時間會失效，失效就再查一次。</p>
-      <p>直接雙擊打開這個檔案時，影片會存進瀏覽器的下載資料夾。若瀏覽器詢問是否允許下載多個檔案，請按允許。Chrome 不允許從檔案網址把影片寫進「下載項目」這類資料夾，所以這頁不再彈出選擇資料夾。</p>
-      <p>若要自己指定資料夾，請在這個檔案所在的資料夾執行 <code>python3 -m http.server 8765</code>，然後開啟 <code>http://localhost:8765/X影片下載(v1.0).html</code>。</p>
+      <p>從網址開啟這頁時，按「提取/下載」會先問一次資料夾，整批影片寫進那裡。請在桌面裡先建一個資料夾再選它。直接選桌面、文件或下載項目時，Chrome 會顯示「資料夾中包含系統檔案」。</p>
+      <p>直接雙擊打開這個檔案時，影片會存進瀏覽器的下載資料夾。若瀏覽器詢問是否允許下載多個檔案，請按允許。</p>
     </details>
   </main>
   <dialog id="failDialog">
@@ -140,8 +142,13 @@
     const failDialog = document.querySelector("#failDialog");
     const failList = document.querySelector("#failList");
     const failClose = document.querySelector("#failClose");
+    const saveHint = document.querySelector("#saveHint");
 
     urlInput.placeholder = BLANK_HINT;
+    const FOLDER_HINT = "按下去會先問一次資料夾。請在桌面裡先建一個資料夾再選它。直接選桌面、文件或下載項目時，Chrome 會顯示「包含系統檔案」。";
+    saveHint.textContent = location.protocol === "file:"
+      ? "這個檔案是直接打開的，影片會存進瀏覽器的下載資料夾。若瀏覽器詢問是否允許下載多個檔案，請按允許。"
+      : FOLDER_HINT;
 
     const HOSTS = new Set([
       "x.com",
@@ -370,10 +377,13 @@
           return;
         }
         try {
-          dir = await window.showDirectoryPicker({ mode: "readwrite" });
+          dir = await window.showDirectoryPicker({ id: "x-videos", mode: "readwrite" });
         } catch (error) {
-          if (error && error.name === "AbortError") return;
-          setStatus("無法使用所選資料夾。", "error");
+          if (error && error.name === "AbortError") {
+            setStatus(FOLDER_HINT, "error");
+            return;
+          }
+          setStatus("無法使用所選資料夾。請在桌面裡先建一個資料夾，再選那個資料夾。", "error");
           return;
         }
       }
