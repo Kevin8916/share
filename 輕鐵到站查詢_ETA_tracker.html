@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-  <title>輕鐵實時到站</title>
+  <title>輕鐵實時到站 (v2.4)</title>
   <meta name="theme-color" content="#0056b3">
   <meta name="description" content="香港輕鐵實時到站查詢：按車站月台或路線沿線查看即將開出的班次。單檔 HTML，可離線開啟後連線查詢。">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -245,6 +245,61 @@
     footer { text-align: center; color: var(--muted); font-size: .75rem; margin-top: 24px; }
     .dir-tag { font-size: .75rem; color: var(--muted); }
     .dir-title { display: flex; align-items: center; gap: 8px; font-size: 1.1rem; font-weight: 700; margin: 8px 0 4px; color: var(--primary); }
+    .jump-card { scroll-margin-top: var(--jump-offset, 64px); }
+    .dir-jump {
+      display: flex;
+      gap: 8px;
+      overflow-x: auto;
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      margin: 0 0 12px;
+      padding: 8px 0;
+      background: var(--bg);
+      -webkit-overflow-scrolling: touch;
+    }
+    .dir-jump[hidden] { display: none !important; }
+    .dir-jump-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      flex: 0 0 auto;
+      padding: 6px 12px;
+      border-radius: 999px;
+      border: 1px solid #8ab4d8;
+      background: #fff;
+      color: #004085;
+      font: inherit;
+      font-weight: 700;
+      font-size: 0.88rem;
+      line-height: 1.3;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .dir-jump-plat {
+      padding-right: 8px;
+      border-right: 1px solid var(--line);
+    }
+    .dir-jump-btn.is-clip { max-width: 16em; }
+    .dir-jump-btn.is-clip .dir-jump-dest {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      min-width: 0;
+    }
+    .dir-jump-btn:hover { background: #e8f4fd; }
+    .dir-jump-btn.is-active,
+    .dir-jump-btn.is-active:hover {
+      background: #0056b3;
+      color: #fff;
+      border-color: #0056b3;
+    }
+    .dir-jump-btn.is-active .dir-jump-plat,
+    .dir-jump-btn.is-active:hover .dir-jump-plat {
+      border-right-color: rgba(255, 255, 255, 0.72);
+    }
+    @media (max-width: 860px) {
+      body.has-back .dir-jump { padding-left: 52px; }
+    }
     .arrow { color: var(--muted); }
     #floatRefreshBtn {
       display: none;
@@ -303,7 +358,7 @@
     <header>
       <button type="button" id="homeBtn" class="back" style="display:block;text-align:left;padding:0;background:transparent;">
         <p class="kicker">MTR Light Rail</p>
-        <h1>輕鐵實時到站 <span class="ver">(v2.2)</span></h1>
+        <h1>輕鐵實時到站 <span class="ver">(v2.4)</span></h1>
         <p class="sub">以車站月台為準，亦可按路線查看沿線各站班次。資料來自港鐵開放數據。</p>
       </button>
       <button type="button" id="headerBackBtn" class="back" hidden aria-label="返回上一畫面">返回</button>
@@ -345,6 +400,7 @@
       </div>
     </div>
 
+    <div id="dirJump" class="dir-jump" hidden aria-label="方向"></div>
     <div id="board"></div>
     <div id="home"></div>
     <button type="button" id="backBtn" class="back-fab" hidden aria-label="返回上一畫面">返回</button>
@@ -738,6 +794,7 @@
     statusEl.hidden = true;
     setBackVisible(false);
     boardEl.innerHTML = "";
+    syncDirJump();
     const favs = favorites().map((id) => STOP_BY_ID[id]).filter(Boolean);
     let html = "";
     if (favs.length) {
@@ -846,6 +903,7 @@
       setStatus('<span class="zh-name">' + esc(stop ? stop.nameZh : "車站 " + id) + "</span>", stop ? stop.nameEn : "");
       if (!boardEl.querySelector("[data-station-board]")) {
         boardEl.innerHTML = '<div class="card loading">正在載入月台班次…</div>';
+        syncDirJump();
       }
     }
     const my = ++nonce;
@@ -914,7 +972,7 @@
     }
   }
 
-  function platHeading(p) {
+  function platDests(p) {
     const dests = [];
     const seen = new Set();
     for (const g of groupPlatTrains(p.trains)) {
@@ -923,6 +981,10 @@
       seen.add(d);
       dests.push(d);
     }
+    return dests;
+  }
+  function platHeading(p) {
+    const dests = platDests(p);
     let html = "<h3 class=\"plat\">月台 " + p.id;
     if (dests.length) {
       html += '<span class="plat-dest">（前往：' + dests.map(esc).join("、") + "）</span>";
@@ -962,11 +1024,12 @@
     else {
       if (platsSkipNumbers(plats)) html += platNoteHtml();
       for (const p of plats) {
-        html += '<div class="card" data-plat="' + p.id + '">' + platHeading(p) + platBody(p) + "</div>";
+        html += '<div class="card jump-card" data-plat="' + p.id + '" data-plat-dest="' + esc(platDests(p).join("、")) + '">' + platHeading(p) + platBody(p) + "</div>";
       }
     }
     boardEl.innerHTML = html;
     bindFav(id, schedule, error);
+    syncDirJump();
   }
 
   function patchStation(id, schedule, error) {
@@ -983,10 +1046,12 @@
       let card = boardEl.querySelector('[data-plat="' + p.id + '"]');
       if (!card) {
         card = document.createElement("div");
-        card.className = "card";
+        card.className = "card jump-card";
         card.setAttribute("data-plat", String(p.id));
         boardEl.appendChild(card);
       }
+      card.classList.add("jump-card");
+      card.setAttribute("data-plat-dest", platDests(p).join("、"));
       const nextBody = platHeading(p) + platBody(p);
       if (card.innerHTML !== nextBody) {
         const prev = {};
@@ -1008,6 +1073,7 @@
     });
     syncPlatNote(plats);
     bindFav(id, schedule, error);
+    syncDirJump();
   }
 
   async function fetchRouteDirs(route) {
@@ -1052,10 +1118,12 @@
     beginLive();
     if (!route) {
       boardEl.innerHTML = '<div class="card"><p class="muted">找不到路線 ' + esc(code) + "。</p></div>";
+      syncDirJump();
       return false;
     }
     if (switching && !boardEl.querySelector("[data-route-board]")) {
       boardEl.innerHTML = '<div class="card loading">正在載入沿線各站班次…</div>';
+      syncDirJump();
     } else {
       boardEl.querySelectorAll(".pills").forEach((el) => el.classList.add("updating"));
     }
@@ -1073,7 +1141,10 @@
       return true;
     } catch (e) {
       if (isAbortError(e) || my !== nonce) return null;
-      if (!silent) boardEl.innerHTML = '<div class="card"><p class="warn">未能載入路線資料。</p></div>';
+      if (!silent) {
+        boardEl.innerHTML = '<div class="card"><p class="warn">未能載入路線資料。</p></div>';
+        syncDirJump();
+      }
       return false;
     } finally {
       if (my === nonce) inFlight = false;
@@ -1083,7 +1154,8 @@
 
   function renderRoute(code, dirs) {
     boardEl.innerHTML = dirs.map((d) => {
-      let html = '<div class="card" data-route-board="1">' + badge(code) +
+      let html = '<div class="card jump-card" data-route-board="1" data-dir="' + d.dir + '" data-dest="' + esc(d.destZh) + '"' +
+        (d.circular ? ' data-circular="1"' : "") + ">" + badge(code) +
         ' <span class="dir-tag">' + (d.circular ? "循環線" : d.dir === 1 ? "去程" : "回程") + "</span>";
       if (d.circular) {
         html += '<div class="dir-title"><span class="zh-name">' + esc(d.origZh) + '</span> <span class="arrow">↺</span> <span class="zh-name">' + esc(d.destZh) + "</span></div>";
@@ -1100,6 +1172,7 @@
       }).join("");
       return html + "</div>";
     }).join("");
+    syncDirJump();
   }
 
   function patchRoute(code, dirs) {
@@ -1220,6 +1293,152 @@
     if (selection) startClock();
   });
   window.addEventListener("hashchange", applyHash);
+
+  const dirJump = $("dirJump");
+  let jumpPinnedCard = null;
+  let jumpPinTimer = 0;
+  let jumpActiveFrame = 0;
+
+  function jumpCards() {
+    return Array.from(boardEl.querySelectorAll(".jump-card"));
+  }
+  function jumpMeta(card) {
+    if (card.hasAttribute("data-dir")) {
+      const dest = card.getAttribute("data-dest") || "";
+      if (card.hasAttribute("data-circular")) {
+        return { label: "循環線", title: dest || "循環線" };
+      }
+      const word = card.getAttribute("data-dir") === "1" ? "去程" : "回程";
+      const label = "(" + word + ") 往" + (dest || "？");
+      return { label: label, title: label };
+    }
+    const id = card.getAttribute("data-plat") || "";
+    const dest = card.getAttribute("data-plat-dest") || "";
+    const plat = "月台 " + id;
+    if (!dest) return { label: plat, title: plat };
+    const destLabel = "往" + dest;
+    const label = plat + " " + destLabel;
+    return { label: label, title: label, clip: label.length > 18, parts: [plat, destLabel] };
+  }
+  function applyJumpOffset() {
+    if (dirJump.hidden) {
+      document.documentElement.style.removeProperty("--jump-offset");
+      boardEl.style.paddingBottom = "";
+      return;
+    }
+    const stuckTop = parseFloat(getComputedStyle(dirJump).top);
+    const top = Number.isFinite(stuckTop) ? stuckTop : 0;
+    const offset = Math.ceil(top + dirJump.offsetHeight + 8);
+    document.documentElement.style.setProperty("--jump-offset", offset + "px");
+    const cards = jumpCards();
+    const last = cards[cards.length - 1];
+    const need = Math.max(0, window.innerHeight - offset - (last ? last.offsetHeight : 0));
+    boardEl.style.paddingBottom = need ? need + "px" : "";
+  }
+  function syncDirJump() {
+    const cards = jumpCards();
+    if (cards.length < 2) {
+      dirJump.hidden = true;
+      dirJump.replaceChildren();
+      delete dirJump.dataset.sig;
+      jumpPinnedCard = null;
+      applyJumpOffset();
+      return;
+    }
+    const signature = cards.map((card) => jumpMeta(card).label).join("\n");
+    const existing = Array.from(dirJump.querySelectorAll(".dir-jump-btn"));
+    if (dirJump.dataset.sig === signature && existing.length === cards.length) {
+      existing.forEach((btn, i) => { btn._jumpCard = cards[i]; });
+      applyJumpOffset();
+      markActiveJump();
+      return;
+    }
+    dirJump.dataset.sig = signature;
+    dirJump.hidden = false;
+    dirJump.replaceChildren();
+    cards.forEach((card) => {
+      const meta = jumpMeta(card);
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "dir-jump-btn" + (meta.clip ? " is-clip" : "");
+      if (meta.parts) {
+        meta.parts.forEach((text, i) => {
+          const span = document.createElement("span");
+          span.className = i === 0 ? "dir-jump-plat" : "dir-jump-dest";
+          span.textContent = text;
+          btn.appendChild(span);
+        });
+      } else {
+        btn.textContent = meta.label;
+      }
+      btn.title = meta.title;
+      btn._jumpCard = card;
+      btn.addEventListener("click", () => {
+        pinJumpCard(card);
+        const motion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        card.scrollIntoView({ behavior: motion ? "auto" : "smooth", block: "start" });
+      });
+      dirJump.appendChild(btn);
+    });
+    applyJumpOffset();
+    markActiveJump();
+  }
+  function pinJumpCard(card) {
+    jumpPinnedCard = card;
+    markActiveJump();
+    if (jumpPinTimer) clearTimeout(jumpPinTimer);
+    jumpPinTimer = setTimeout(() => {
+      jumpPinTimer = 0;
+      jumpPinnedCard = null;
+      markActiveJump();
+    }, 2000);
+  }
+  function releasePinnedJump() {
+    if (!jumpPinnedCard && !jumpPinTimer) return;
+    jumpPinnedCard = null;
+    if (jumpPinTimer) {
+      clearTimeout(jumpPinTimer);
+      jumpPinTimer = 0;
+    }
+    markActiveJump();
+  }
+  function cardAtJumpLine(cards, line) {
+    let above = null;
+    for (const card of cards) {
+      const rect = card.getBoundingClientRect();
+      if (rect.top <= line && rect.bottom > line) return card;
+      if (rect.top <= line) above = card;
+    }
+    return above || cards[0] || null;
+  }
+  function markActiveJump() {
+    const buttons = Array.from(dirJump.querySelectorAll(".dir-jump-btn"));
+    if (dirJump.hidden || !buttons.length) return;
+    const cards = buttons.map((btn) => btn._jumpCard).filter(Boolean);
+    const pinned = jumpPinnedCard && cards.indexOf(jumpPinnedCard) !== -1 ? jumpPinnedCard : null;
+    const raw = parseFloat(getComputedStyle(cards[0]).scrollMarginTop);
+    const margin = Number.isFinite(raw) ? raw : 0;
+    const current = pinned || cardAtJumpLine(cards, margin + 4);
+    buttons.forEach((btn) => {
+      const on = btn._jumpCard === current;
+      btn.classList.toggle("is-active", on);
+      if (on) btn.setAttribute("aria-current", "true");
+      else btn.removeAttribute("aria-current");
+    });
+  }
+  function scheduleActiveJump() {
+    if (jumpActiveFrame) return;
+    jumpActiveFrame = requestAnimationFrame(() => {
+      jumpActiveFrame = 0;
+      markActiveJump();
+    });
+  }
+  window.addEventListener("scroll", scheduleActiveJump, { passive: true });
+  window.addEventListener("scrollend", releasePinnedJump);
+  window.addEventListener("resize", () => {
+    applyJumpOffset();
+    scheduleActiveJump();
+  });
 
   applyHash();
 })();
