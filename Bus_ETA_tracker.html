@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>香港巴士與小巴實時 ETA 查詢平台 (v15.8)</title>
+  <title>香港巴士與小巴實時 ETA 查詢平台 (v15.9)</title>
   <style>
     :root {
       --primary-color: #0056b3;
@@ -392,7 +392,7 @@
 <body>
 
 <div class="container">
-  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v15.8)</span></h1>
+  <h1>🚍 香港巴士 / 小巴 ETA 實時到站查詢 <span class="app-version">(v15.9)</span></h1>
 
   <div class="search-box">
     <input type="text" id="routeInput" placeholder="輸入路線編號 (例: 5B, 116, 140M, 1, K12)..." autocomplete="off">
@@ -460,18 +460,18 @@
   const SLOT_KEY = 'bus-eta-slots';
   const REFRESH_KEY = 'bus-eta-refresh';
 
-  // 港鐵巴士：opendata CSV 無 CORS，搜尋用官方規格名單（2026-09），ETA／站序只信 getSchedule。站名對照來自官方 mtr_bus_stops.csv（2026-02）。
+  // 港鐵巴士：opendata CSV 無 CORS，搜尋用官方路線名單（mtr_bus_routes.csv，2026-09-27），ETA／站序只信 getSchedule。站名對照來自官方 mtr_bus_stops.csv（2026-02）。
   const MTR_BUS_ROUTE_SEED = [
     { route: '506', origDest: '屯門碼頭 ↔ 兆麟／富健花園 ↔ 屯門站' },
     { route: 'K12', origDest: '大埔墟站 ↔ 八號花園' },
-    { route: 'K14', origDest: '大埔超級城 ↔ 大埔墟站' },
+    { route: 'K14', origDest: '大埔超級城 → 大埔墟站' },
     { route: 'K17', origDest: '大埔墟站 ↔ 富善' },
-    { route: 'K18', origDest: '大埔墟站 ↔ 廣福' },
+    { route: 'K18', origDest: '大埔墟站 ↔ 廣福（循環）' },
     { route: 'K51', origDest: '富泰 ↔ 大欖／兆康站' },
     { route: 'K51A', origDest: '富泰 ↔ 掃管笏' },
     { route: 'K52', origDest: '悅湖山莊 ↔ 龍鼓灘' },
     { route: 'K52A', origDest: '屯門站 ↔ 曾咀' },
-    { route: 'K52P', origDest: '龍鼓灘 ↔ 屯門站' },
+    { route: 'K52P', origDest: '龍鼓灘 → 屯門站' },
     { route: 'K53', origDest: '屯門站 ↔ 掃管笏（循環）' },
     { route: 'K53S', origDest: '屯門站 ↔ 業旺邨（循環）' },
     { route: 'K54', origDest: '和田邨 ↔ 屯門市中心（循環）' },
@@ -485,7 +485,9 @@
     { route: 'K74', origDest: '天水圍市中心 ↔ 凹頭（循環）' },
     { route: 'K75A', origDest: '天水圍站 ↔ 洪水橋（循環）' },
     { route: 'K75P', origDest: '天瑞 ↔ 洪水橋（循環）' },
-    { route: 'K76', origDest: '天恆 ↔ 天水圍站' }
+    { route: 'K75S', origDest: '天水圍站 ↔ 洪福邨（循環）' },
+    { route: 'K76', origDest: '天恆 ↔ 天水圍站' },
+    { route: 'K76S', origDest: '濕地公園路（近天葵路） ↔ 天盛苑／港鐵天水圍站' }
   ];
 
   // STATION_ID -> 中文站名（官方 CSV；getSchedule 只回傳代號）
